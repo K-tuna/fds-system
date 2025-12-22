@@ -20,7 +20,9 @@
       "Bash(git commit:*)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(conda activate:*)",
+      "Bash(pip install:*)"
     ]
   }
 }
