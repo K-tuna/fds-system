@@ -94,14 +94,14 @@ fds-system/
 ```
 
 ### 코드 스타일
-- Python 3.10+
+- Python 3.11
 - 타입 힌트 필수
 - 검증된 코드는 src/로 모듈화
 
 ## 환경 설정
 
 ```bash
-conda create -n fds python=3.10 -y
+conda create -n fds python=3.11 -y
 conda activate fds
 
 # Phase 0 기본

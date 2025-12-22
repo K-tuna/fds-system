@@ -17,7 +17,9 @@
       "mcp__serena__list_memories",
       "mcp__serena__write_memory",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ]
   }
 }

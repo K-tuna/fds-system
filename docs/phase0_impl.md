@@ -51,7 +51,7 @@ Phase 0~1 진행을 위한 conda 환경 구성
 - 환경 생성/활성화 방법
 
 **2. fds 환경 생성**
-- Python 3.10 사용
+- Python 3.11 사용
 - conda create 명령어
 - conda activate 명령어
 
@@ -102,7 +102,7 @@ Phase 0~1 진행을 위한 환경을 구성합니다.
 # 터미널에서 실행 (이 셀은 실행 X)
 # 아래 명령어를 복사해서 터미널에 붙여넣기
 
-# conda create -n fds python=3.10 -y
+# conda create -n fds python=3.11 -y
 # conda activate fds
 ```
 
