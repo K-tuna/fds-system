@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__list_dir",
+      "mcp__serena__activate_project",
+      "Bash(mkdir:*)",
+      "Bash(move phase0_prd.md docs )",
+      "Bash(move phase0_impl.md docs )",
+      "Bash(move phase1_prd.md docs )",
+      "Bash(move phase1_impl.md docs )",
+      "Bash(move:*)",
+      "Bash(cmd /c \"move phase0_prd.md docs\\\\ && move phase0_impl.md docs\\\\ && move phase1_prd.md docs\\\\ && move phase1_impl.md docs\\\\ && move 1-2_impl_example.md docs\"\")",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__onboarding",
+      "mcp__serena__list_memories",
+      "mcp__serena__write_memory",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
