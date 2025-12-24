@@ -9,7 +9,6 @@
       "Bash(move phase1_prd.md docs )",
       "Bash(move phase1_impl.md docs )",
       "Bash(move:*)",
-      "Bash(cmd /c \"move phase0_prd.md docs\\\\ && move phase0_impl.md docs\\\\ && move phase1_prd.md docs\\\\ && move phase1_impl.md docs\\\\ && move 1-2_impl_example.md docs\"\")",
       "Bash(mv:*)",
       "Bash(rm:*)",
       "mcp__serena__check_onboarding_performed",
@@ -22,7 +21,8 @@
       "mcp__context7__get-library-docs",
       "Bash(cat:*)",
       "Bash(conda activate:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "WebSearch"
     ]
   }
 }

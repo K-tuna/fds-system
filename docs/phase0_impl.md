@@ -13,13 +13,10 @@ notebooks/
     ├── 0-1_class_typing.ipynb
     ├── 0-2_numpy.ipynb
     ├── 0-3_pandas.ipynb
-    ├── 0-4_matplotlib.ipynb
-    ├── 0-5_ml_sklearn.ipynb
-    ├── 0-6_model_tuning.ipynb
-    ├── 0-7_llm_rag.ipynb
-    ├── 0-8_langchain_langgraph.ipynb
-    └── 0-9_fastapi_async.ipynb
+    └── 0-4_matplotlib.ipynb
 ```
+
+> Note: 0-5, 0-6은 `notebooks/phase1/study/`로 이동됨
 
 ---
 
@@ -511,9 +508,9 @@ print("다음: 0-2 Numpy")
 
 ---
 
-## 0-2 ~ 0-9: 동일 패턴
+## 0-2 ~ 0-4: 동일 패턴
 
-나머지 섹션(0-2 ~ 0-9)도 위와 동일한 패턴으로 구성:
+나머지 섹션(0-2 ~ 0-4)도 위와 동일한 패턴으로 구성:
 
 1. **필요 패키지** - 해당 노트북에서 쓸 패키지
 2. **세부 설명 리스트** - 어떤 개념을 설명할지
@@ -654,204 +651,6 @@ import numpy as np
 
 ---
 
-## 0-5: ML 개념 + Sklearn (2.5시간)
-
-### 필요 패키지
-```python
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, recall_score, precision_score, roc_auc_score
-from xgboost import XGBClassifier
-```
-
-### 세부 설명 리스트
-
-**1. ML이란**
-- 분류 vs 회귀
-- FDS = 분류
-
-**2. 과적합**
-- 왜 train/test 나누나
-
-**3. train_test_split**
-- test_size, random_state
-
-**4. fit → predict**
-- 공통 패턴
-- predict_proba
-
-**5. 평가 지표**
-- Accuracy, Recall, Precision, AUC
-- FDS에서 Recall 중요
-
-**6. 트리 모델**
-- DecisionTree → RandomForest → XGBoost
-
-### 실습 목록
-- 실습 1: train_test_split
-- 실습 2: fit/predict
-- 실습 3: 평가 지표 계산
-- 실습 4: 3개 모델 비교
-
----
-
-## 0-6: 모델 저장/튜닝/설명 (1시간)
-
-### 필요 패키지
-```python
-import joblib
-import optuna
-import shap
-from xgboost import XGBClassifier
-from sklearn.model_selection import cross_val_score
-```
-
-### 세부 설명 리스트
-
-**1. joblib**
-- dump, load
-- .pkl 파일
-
-**2. Optuna**
-- 하이퍼파라미터란
-- study, trial, objective
-- suggest_int, suggest_float
-
-**3. SHAP**
-- XAI란
-- TreeExplainer
-- shap_values
-
-### 실습 목록
-- 실습 1: 모델 저장/로드
-- 실습 2: Optuna 튜닝
-- 실습 3: SHAP 피처 중요도
-
----
-
-## 0-7: LLM/RAG 개념 (2시간)
-
-### 필요 패키지
-```python
-# 개념 위주, 실습은 Phase 1에서
-import numpy as np  # 유사도 계산용
-```
-
-### 세부 설명 리스트
-
-**1. LLM이란**
-- GPT, Claude, Qwen
-- 로컬 vs API
-- Ollama
-
-**2. 토큰**
-- 토큰 개념
-- 컨텍스트 윈도우
-- 비용
-
-**3. 프롬프트**
-- 시스템/유저 프롬프트
-- 프롬프트 엔지니어링
-
-**4. 임베딩**
-- 텍스트 → 벡터
-- 유사도 (코사인)
-- 임베딩 모델
-
-**5. RAG**
-- 왜 필요 (할루시네이션)
-- 흐름: 검색 → 생성
-- 청킹
-
-**6. 벡터DB**
-- PGVector, Pinecone, Chroma
-- 유사도 검색
-
-### 실습 목록
-- 실습 1: 토큰 시뮬레이션
-- 실습 2: 코사인 유사도 계산
-- 실습 3: RAG 흐름 의사코드
-
----
-
-## 0-8: LangChain/LangGraph (1.5시간)
-
-### 필요 패키지
-```python
-# 개념 위주
-from typing import TypedDict, Optional, List
-```
-
-### 세부 설명 리스트
-
-**1. LangChain이란**
-- LLM 앱 프레임워크
-- 왜 쓰나
-
-**2. LangChain 구성**
-- LLM, PromptTemplate
-- Chain, Retriever
-
-**3. LangGraph란**
-- Chain의 한계
-- 그래프 기반
-
-**4. LangGraph 구성**
-- State, Node, Edge
-- Conditional Edge
-
-**5. FDS Agent 구조**
-- detect → explain → search → generate
-
-### 실습 목록
-- 실습 1: 프롬프트 템플릿
-- 실습 2: FDSAgentState 정의
-- 실습 3: 노드 함수 작성 (의사코드)
-
----
-
-## 0-9: FastAPI + 비동기 (1.5시간)
-
-### 필요 패키지
-```python
-# 개념 위주
-from pydantic import BaseModel
-from typing import Optional, List
-```
-
-### 세부 설명 리스트
-
-**1. REST API**
-- GET, POST, PUT, DELETE
-- 요청/응답
-
-**2. FastAPI**
-- 왜 FastAPI
-- @app.get, @app.post
-- 파라미터
-
-**3. Pydantic**
-- BaseModel
-- 타입 검증
-
-**4. async/await**
-- 동기 vs 비동기
-- 왜 비동기
-
-**5. Celery + Redis**
-- 왜 필요
-- task_id 패턴
-- 흐름
-
-### 실습 목록
-- 실습 1: Pydantic 스키마 정의
-- 실습 2: 엔드포인트 작성 (의사코드)
-- 실습 3: Celery 흐름 이해
-
----
-
 ## 전체 요약
 
 | 파일 | 시간 | 필요 패키지 | 실습 수 |
@@ -861,10 +660,7 @@ from typing import Optional, List
 | 0-2_numpy | 1.5h | numpy | 5 |
 | 0-3_pandas | 2.5h | numpy, pandas | 6 |
 | 0-4_matplotlib | 1h | numpy, matplotlib | 4 |
-| 0-5_ml_sklearn | 2.5h | sklearn, xgboost | 4 |
-| 0-6_model_tuning | 1h | joblib, optuna, shap | 3 |
-| 0-7_llm_rag | 2h | numpy (개념 위주) | 3 |
-| 0-8_langchain | 1.5h | typing (개념 위주) | 3 |
-| 0-9_fastapi | 1.5h | pydantic (개념 위주) | 3 |
 
-**총 약 14.5시간, 36개 실습**
+**총 약 6시간, 20개 실습**
+
+> Note: 0-5, 0-6은 `notebooks/phase1/study/`로 이동됨 (상세: phase1_impl.md)

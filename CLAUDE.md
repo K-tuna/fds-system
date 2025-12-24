@@ -1,4 +1,4 @@
-# FDS System - Explainable FDS with Regulatory RAG
+# FDS System - Explainable FDS with Ensemble Learning
 
 ## ⚠️ 필독 사항
 
@@ -9,17 +9,18 @@
 
 ### 문서 위치 (반드시 읽을 것)
 작업 전 반드시 해당 Phase 문서를 읽고 진행:
-- `docs/phase0_prd.md` - Phase 0 기획
-- `docs/phase0_impl.md` - Phase 0 구현 상세 ⭐
-- `docs/phase1_prd.md` - Phase 1 기획
-- `docs/phase1_impl.md` - Phase 1 구현 상세 ⭐
-- `docs/1-2_impl_example.md` - 노트북 구현 예시
+- `docs/roadmap.md` - **전체 로드맵** ⭐⭐ (Phase 1~5)
+- `docs/phase0_study.md` - Phase 0 학습 개요
+- `docs/phase0_impl.md` - Phase 0 구현 상세
+- `docs/phase1_study.md` - Phase 1 사전학습 (ML 개념)
+- `docs/phase1_prd.md` - Phase 1 기획 ⭐
+- `docs/phase1_impl.md` - Phase 1 구현 상세
 
 ---
 
 ## 📍 현재 진행 상황
 
-**마지막 업데이트**: Phase 0-5 ML/Sklearn 노트북 완료
+**마지막 업데이트**: 문서 구조 리팩토링 (study/prd/impl 분리)
 
 | Phase | 섹션 | 상태 |
 |-------|------|------|
@@ -29,30 +30,29 @@
 | Phase 0 | 0-2 Numpy | ✅ 완료 |
 | Phase 0 | 0-3 Pandas | ✅ 완료 |
 | Phase 0 | 0-4 Matplotlib | ✅ 완료 |
-| Phase 0 | 0-5 ML/Sklearn | ✅ 완료 |
-| Phase 0 | 0-6 모델저장/튜닝/SHAP | ⏳ 시작 전 |
-| Phase 1 | - | ⏳ 시작 전 |
+| Phase 1 Study | 1-S1 ML/Sklearn | ✅ 완료 (0-5에서 이동) |
+| Phase 1 Study | 1-S2 모델저장/튜닝/SHAP | ⏳ 시작 전 |
+| Phase 1 | PRD 수정 | ✅ 완료 |
+| Phase 1 | impl 수정 | ✅ 완료 |
 
-**다음 작업**: Phase 0-6 모델 저장/튜닝/SHAP 노트북 생성
+**다음 작업**: Phase 1 Study 노트북 (1-S2) 또는 Phase 1 구현 시작
 
 ---
 
 ## 프로젝트 개요
 
-금융 이상거래 탐지(FDS) 시스템. XGBoost + SHAP + RAG 결합.
-- 이상거래 탐지 (XGBoost)
+금융 이상거래 탐지(FDS) 시스템. XGBoost + LSTM 앙상블 + SHAP 설명.
+- 정형 특성 탐지 (XGBoost)
+- 시계열 패턴 탐지 (LSTM)
+- 앙상블로 성능 향상 (AUC 0.92 → 0.94)
 - SHAP 기반 설명 (XAI)
-- 금융 규정 검색 및 근거 제시 (RAG)
 
 ## 기술 스택
 
 | 영역 | 기술 |
 |------|------|
-| ML | XGBoost, SHAP |
-| RAG | LangChain, LangGraph, PGVector |
-| LLM | Qwen 2.5 3B (Ollama) - 8GB VRAM 제약 |
-| API | FastAPI, Celery, Redis |
-| DB | PostgreSQL (PGVector) |
+| ML | XGBoost, PyTorch (LSTM), SHAP |
+| API | FastAPI |
 | Infra | Docker Compose |
 
 ## 프로젝트 구조
@@ -61,31 +61,45 @@
 fds-system/
 ├── docs/                    # PRD 및 구현 가이드 ⭐ 필독
 ├── notebooks/
-│   ├── phase0/             # 기초 학습 (0-0 ~ 0-9)
-│   └── phase1/             # FDS 구현 (1-1 ~ 1-7)
+│   ├── phase0/             # 기초 학습 (0-0 ~ 0-4)
+│   └── phase1/
+│       ├── study/          # Phase 1 사전학습 (1-S1 ~ 1-S5)
+│       └── (구현 노트북)    # 1-1 ~ 1-7
 ├── src/
-│   ├── ml/                 # feature_engineering, model, explainer
-│   ├── rag/                # chunking, embedding, retriever, generator
-│   ├── agent/              # state, nodes, graph
-│   └── api/                # main, schemas, tasks
+│   ├── ml/                 # feature_engineering, xgboost, lstm, ensemble
+│   ├── explainer/          # shap 설명 모듈
+│   └── api/                # FastAPI main, schemas
 ├── data/
 │   ├── raw/                # IEEE-CIS 원본
 │   └── processed/          # 전처리 데이터
-├── models/                 # 학습된 모델 (.pkl)
+├── models/                 # 학습된 모델 (.pkl, .pt)
 ├── docker-compose.yml
 └── requirements.txt
 ```
 
-## Phase 구성
+## Phase 구성 (상세: docs/roadmap.md)
 
-### Phase 0: 기초 학습 (~14.5시간)
-0-0 환경세팅 → 0-1 클래스/타입힌트 → 0-2 Numpy → 0-3 Pandas →
-0-4 Matplotlib → 0-5 ML/Sklearn → 0-6 모델튜닝 → 0-7 LLM/RAG →
-0-8 LangChain → 0-9 FastAPI
+### Phase 0: 공통 기초 (6시간)
+0-0 환경세팅 → 0-1 클래스/타입힌트 → 0-2 Numpy → 0-3 Pandas → 0-4 Matplotlib
 
-### Phase 1: FDS 구현 (~25시간)
-1-1 EDA → 1-2 Feature Engineering → 1-3 모델 고도화 → 1-4 SHAP →
-1-5 RAG 환경 → 1-6 RAG 고도화 → 1-7 Agent/API
+### Phase 1 Study: ML 사전학습 (5시간)
+1-S1 ML/Sklearn → 1-S2 모델튜닝/SHAP → 1-S3 XGBoost → 1-S4 LSTM → 1-S5 앙상블
+
+### Phase 1: 모델링 + 배포 (7일)
+1-1 EDA → 1-2 Feature Engineering → 1-3 XGBoost →
+1-4 LSTM → 1-5 Ensemble → 1-6 SHAP → 1-7 FastAPI
+
+### Phase 2: MLOps + 모니터링 (6일)
+MLflow → Evidently → 비용최적화 → GitHub Actions → A/B테스트 → Prometheus/Grafana
+
+### Phase 3: 실시간 + 워크플로 (5일)
+Kafka → Airflow → Feast → ONNX
+
+### Phase 4: 클라우드 + 인프라 (5일)
+BigQuery → Kubernetes → S3/MinIO → Spark
+
+### Phase 5: 고급 + 차별화 (5일+)
+GNN → Kubeflow → Flink → ELK
 
 ## 개발 규칙
 
@@ -112,24 +126,22 @@ conda activate fds
 # Phase 0 기본
 pip install numpy pandas matplotlib scikit-learn
 
-# Phase 0 후반
+# Phase 0 후반 + Phase 1
 pip install xgboost optuna shap
+pip install torch  # LSTM용
 
-# Phase 1 RAG/API
-pip install langchain langchain-community langgraph
-pip install fastapi uvicorn celery redis
-pip install pgvector psycopg2-binary
+# Phase 1 API
+pip install fastapi uvicorn
 ```
 
 ## 핵심 면접 포인트
 
-1. **XGBoost 선택**: AUC 최고 + SHAP 호환성
-2. **Threshold 최적화**: FN:FP = 10:1 비용 기반
-3. **청킹**: Semantic Chunking (법률 문서 특성)
-4. **검색**: Hybrid Search (Dense + Sparse)
-5. **비동기**: Celery (LLM 2-3초 지연 처리)
+1. **XGBoost 선택**: 정형 데이터에서 AUC 최고 + SHAP 호환성
+2. **LSTM 추가**: 시계열 패턴 학습 → 앙상블로 AUC 2% 향상
+3. **앙상블**: Weighted Average (0.6:0.4), 실험으로 가중치 최적화
+4. **Threshold 최적화**: FN:FP = 10:1 비용 기반
+5. **SHAP 통합 설명**: TreeExplainer + DeepExplainer 결합
 
 ## 데이터
 
 - IEEE-CIS Fraud Detection (Kaggle)
-- 전자금융거래법, 금융위 FDS 가이드라인
