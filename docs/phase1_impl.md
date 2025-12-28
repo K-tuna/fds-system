@@ -282,7 +282,19 @@ import time
 - objective 함수
 - n_trials 설정
 
-**5. 모델 저장**
+**5. n_estimators와 Early Stopping** ⭐
+- 현업 트리 개수: 100~500개 (상황별 상이)
+- Early Stopping으로 최적 개수 자동 탐색
+- GPU vs CPU 선택 기준
+
+| 상황 | 트리 수 | 이유 |
+|------|---------|------|
+| 빠른 실험 | 100 | 베이스라인 |
+| 프로덕션 FDS | 200~500 | 성능 vs 속도 균형 |
+| Kaggle 대회 | 1000+ | 최고 성능 |
+| 실시간 API | 50~200 | 응답속도 중요 |
+
+**6. 모델 저장**
 - joblib.dump
 - 메타데이터 함께 저장
 
@@ -334,6 +346,27 @@ optimal_threshold = thresholds[np.argmin(costs)]
 print(f"최적 Threshold: {optimal_threshold:.2f}")
 ```
 
+### 핵심 코드: Early Stopping
+
+```python
+# Early Stopping으로 최적 트리 개수 찾기
+model = XGBClassifier(
+    n_estimators=1000,           # 일단 많이
+    early_stopping_rounds=50,    # 50번 연속 개선 없으면 중단
+    eval_metric='auc',
+    device='cuda',
+    random_state=42
+)
+
+model.fit(
+    X_train, y_train,
+    eval_set=[(X_valid, y_valid)],
+    verbose=100  # 100번마다 출력
+)
+
+print(f"실제 사용된 트리 수: {model.best_iteration}")  # 예: 287
+```
+
 ### 면접 포인트
 
 Q: "왜 XGBoost를 선택했나요?"
@@ -341,6 +374,12 @@ Q: "왜 XGBoost를 선택했나요?"
 
 Q: "Threshold는 어떻게 정했나요?"
 > "FDS에서 FN(놓친 사기)이 FP(오탐)보다 비용이 큽니다. FN:FP = 10:1로 비용 함수를 정의하고 최소화하는 Threshold 0.35를 찾았습니다."
+
+Q: "n_estimators는 어떻게 정했나요?"
+> "Early Stopping을 사용했습니다. n_estimators=1000으로 설정하고, validation AUC가 50 epoch 연속 개선 없으면 중단합니다. 실제로는 약 300개 트리에서 수렴했습니다."
+
+Q: "GPU를 안 쓰면 어떻게 되나요?"
+> "28만건 데이터에서는 CPU도 충분히 빠릅니다 (0.6초). GPU 오버헤드 때문에 오히려 느릴 수 있습니다. 수백만건 이상에서 GPU가 효과적입니다."
 
 ---
 

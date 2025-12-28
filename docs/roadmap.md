@@ -53,8 +53,10 @@
 |------|------|---------|-------|
 | C-12 | Spark | 25% | 4 |
 | C-13 | ONNX 최적화 | 20% | 3 |
-| C-14 | S3/MinIO | 20% | 4 |
-| C-15 | ELK Stack | 20% | 5 |
+| C-14 | TensorRT | 20% | 3 |
+| C-15 | Triton Inference Server | 20% | 3 |
+| C-16 | S3/MinIO | 20% | 4 |
+| C-17 | ELK Stack | 20% | 5 |
 
 ### Tier D: 후순위 (JD 15% 미만)
 
@@ -81,7 +83,7 @@
 | 4 | LSTM | PyTorch, 시퀀스 데이터 |
 | 5 | Ensemble | 가중 앙상블, 성능 비교 |
 | 6 | SHAP | TreeExplainer, DeepExplainer |
-| 7 | FastAPI + Docker | API 서빙, 컨테이너화 |
+| 7 | FastAPI + Docker | joblib 저장, API 서빙, 컨테이너화 |
 
 **결과물:**
 - XGBoost + LSTM 앙상블 FDS
@@ -128,22 +130,32 @@
 
 ---
 
-### Phase 3: 실시간 + 워크플로 (5일)
+### Phase 3: 실시간 + 워크플로 (6일)
 
 **목표:** 실시간 파이프라인 + 자동화
+
+**모델 서빙 변환 흐름:**
+```
+Phase 1: joblib (개발용)
+    ↓
+Phase 3: joblib → ONNX → TensorRT → Triton (프로덕션)
+```
 
 | Day | 주제 | 핵심 기술 |
 |-----|------|-----------|
 | 1-2 | 실시간 스트리밍 | Kafka |
 | 3 | 워크플로 오케스트레이션 | Airflow |
 | 4 | 피처 스토어 | Feast |
-| 5 | 모델 최적화 | ONNX Runtime |
+| 5 | 모델 최적화 | joblib → ONNX 변환 |
+| 6 | DL 최적화 + 서빙 | TensorRT + Triton |
 
 **결과물:**
 - Kafka 기반 실시간 추론 파이프라인
 - Airflow 재학습 스케줄링
 - Feast 피처 관리
 - ONNX 추론 최적화
+- TensorRT LSTM 최적화
+- Triton 멀티모델 서빙
 
 **포트폴리오 레벨:** 매우 좋음 ⭐⭐
 
@@ -152,6 +164,8 @@
 - "Airflow로 주간 자동 재학습"
 - "Feature Store로 피처 일관성 보장"
 - "ONNX로 추론 속도 3배 향상"
+- "TensorRT로 LSTM 추론 5배 최적화"
+- "Triton으로 XGBoost + LSTM 동시 서빙"
 
 ---
 
@@ -214,9 +228,9 @@
 |-------|------|------|-----------------|
 | 1 | 7일 | 7일 | 기본 |
 | 2 | 6일 | 13일 | 좋음 ⭐ |
-| 3 | 5일 | 18일 | 매우 좋음 ⭐⭐ |
-| 4 | 5일 | 23일 | 풀스택 ⭐⭐⭐ |
-| 5 | 5일+ | 28일+ | 시니어급 |
+| 3 | 6일 | 19일 | 매우 좋음 ⭐⭐ |
+| 4 | 5일 | 24일 | 풀스택 ⭐⭐⭐ |
+| 5 | 5일+ | 29일+ | 시니어급 |
 
 ---
 

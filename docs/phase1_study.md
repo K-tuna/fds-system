@@ -12,8 +12,29 @@ Phase 1 (XGBoost + LSTM 앙상블 FDS) 구현을 위한 ML 기초
 ### 선수 조건
 - Phase 0 (Python, Numpy, Pandas, Matplotlib) 완료
 
+### 사용 데이터
+- **Credit Card Fraud Detection** (Kaggle)
+- 284,807건 신용카드 거래, 사기 0.17%
+- 다운로드: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
+- 위치: `data/raw/creditcard.csv`
+
 ### 총 학습 시간
 약 5시간
+
+---
+
+## ⭐ 학습-구현 사이클 (중요!)
+
+**원칙**: 학습 전부 → 구현 전부 ❌ | 학습 → 바로 구현 → 학습 → 구현 ✅
+
+| Cycle | 학습 (Study) | 구현 (Impl) | 설명 |
+|-------|--------------|-------------|------|
+| 1 | 1-S1, 1-S2, 1-S3 | 1-1, 1-2, 1-3 | ML 기초 + XGBoost |
+| 2 | 1-S4 | 1-4 | LSTM |
+| 3 | 1-S5 | 1-5 | 앙상블 |
+| 4 | - | 1-6, 1-7 | SHAP + FastAPI |
+
+**이유**: 배운 것을 바로 적용해야 기억에 남고 효율적
 
 ---
 
@@ -213,11 +234,11 @@ final_prob = 0.6 * xgb_prob + 0.4 * lstm_prob
 ## 학습 완료 후
 
 ### 전체 체크리스트
-- [ ] 1-S1: ML 개념 + Sklearn
-- [ ] 1-S2: 모델 저장/튜닝/설명
-- [ ] 1-S3: XGBoost 심화
-- [ ] 1-S4: LSTM 기초
-- [ ] 1-S5: 앙상블 개념
+- [x] 1-S1: ML 개념 + Sklearn ✅
+- [x] 1-S2: 모델 저장/튜닝/설명 ✅
+- [x] 1-S3: XGBoost 심화 ✅
+- [ ] 1-S4: LSTM 기초 (노트북 생성됨, Cycle 2에서 진행)
+- [ ] 1-S5: 앙상블 개념 (Cycle 3에서 진행)
 
 ### 다음 단계
-Phase 1 Study 완료 → Phase 1 구현 시작 (1-1 EDA)
+1-S3 완료 → **1-1, 1-2, 1-3 구현** → 1-S4 학습 → 1-4 구현 → ...

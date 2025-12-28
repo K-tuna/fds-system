@@ -541,12 +541,28 @@ Q: "앙상블 모델은 어떻게 설명하나요?"
        }
    ```
 
-2. **Docker 컨테이너화**
+2. **모델 저장 (joblib)**
+   ```python
+   import joblib
+
+   # 모델 저장 (개발용, .joblib 확장자 표준)
+   joblib.dump(xgb_model, 'models/xgb_model.joblib')
+
+   # PyTorch는 .pt 확장자
+   torch.save(lstm_model.state_dict(), 'models/lstm_model.pt')
+
+   # 모델 로드
+   xgb_model = joblib.load('models/xgb_model.joblib')
+   ```
+   - Phase 1: joblib (.joblib 확장자, 개발용)
+   - Phase 3: ONNX → TensorRT → Triton (프로덕션)
+
+3. **Docker 컨테이너화**
    - Dockerfile 작성
    - 모델 파일 포함
    - docker compose up으로 실행
 
-3. **성능 최적화**
+4. **성능 최적화**
    - 모델 로딩: 앱 시작 시 한 번만
    - SHAP 캐싱: 동일 요청 재계산 방지
 
@@ -642,14 +658,23 @@ Phase 1 완료: 기본 포트폴리오
 
 **완료 후 레벨:** 좋음 ⭐ (서류 통과율 60~70%)
 
-### Phase 3: 실시간 + 워크플로 (5일)
+### Phase 3: 실시간 + 워크플로 (6일)
+
+**모델 서빙 변환 흐름:**
+```
+Phase 1: joblib (개발용)
+    ↓
+Phase 3: joblib → ONNX → TensorRT → Triton (프로덕션)
+```
 
 | 기술 | 역할 | 면접 어필 |
 |------|------|-----------|
 | **Kafka** | 실시간 스트리밍 | "실시간 사기 탐지, 지연 50ms" |
 | **Airflow** | 재학습 스케줄링 | "주간 자동 재학습" |
 | **Feast** | Feature Store | "피처 일관성 보장" |
-| **ONNX** | 모델 최적화 | "추론 속도 3배 향상" |
+| **ONNX** | joblib → ONNX 변환 | "추론 속도 3배 향상" |
+| **TensorRT** | DL 추론 최적화 | "LSTM 추론 10ms 이하" |
+| **Triton** | 모델 서빙 플랫폼 | "멀티모델 동시 서빙" |
 
 **완료 후 레벨:** 매우 좋음 ⭐⭐ (서류 통과율 80~90%)
 
