@@ -295,10 +295,11 @@ for w_xgb in [0.4, 0.5, 0.6, 0.7]:
 | 2 | Feature Engineering | 정형 + 시계열 피처 (35개+) |
 | 3 | XGBoost 모델 ⭐ | Optuna 튜닝, Threshold |
 | 4 | LSTM 모델 ⭐ | PyTorch, V1~V20 + 시계열 피처 |
-| 5 | Ensemble ⭐ | 가중 앙상블 (목표 미달 시 → Day 8) |
+| 5 | Ensemble ⭐ | 가중 앙상블 |
 | 6 | SHAP 설명 | TreeExplainer, DeepExplainer |
 | 7 | FastAPI 배포 | Docker, API 설계 |
-| 8 | **Fusion 실험** ⭐⭐ | 2024 논문 기반 융합 (AUC 0.92+) |
+| 8 | **React Admin** | Ant Design, 거래 목록/상세 UI |
+| 9 | Fusion 실험 (선택) | 2024 논문 기반 융합 (AUC 0.92+) |
 
 ### 6.2 Day별 학습 가이드
 
@@ -485,7 +486,66 @@ Q: "왜 두 모델이 상호 보완적인가요?"
 
 ---
 
-#### Day 8: Fusion 실험 ⭐⭐ (2024 논문 기반)
+#### Day 8: React Admin ⭐
+
+**📚 핵심 개념**
+
+1. **React + Ant Design 선택 이유**
+   - 금융권 Admin 표준 조합
+   - 테이블, 차트 컴포넌트 풍부
+   - SHAP 시각화 연동 용이
+
+2. **프로젝트 구조**
+   ```
+   frontend/
+   ├── src/
+   │   ├── components/       # 재사용 컴포넌트
+   │   │   ├── TransactionTable.jsx
+   │   │   └── TransactionDetail.jsx
+   │   ├── pages/            # 페이지
+   │   │   └── Dashboard.jsx
+   │   └── api/              # API 연동
+   │       └── client.js
+   ├── package.json
+   └── Dockerfile
+   ```
+
+3. **핵심 컴포넌트**
+   - TransactionTable: 거래 목록 (pagination, 필터)
+   - TransactionDetail: 상세 + SHAP 설명
+   - Dashboard: 통계 요약
+
+4. **FastAPI 연동**
+   ```javascript
+   // api/client.js
+   const API_BASE = 'http://localhost:8000';
+
+   export const getTransactions = async (params) => {
+     const res = await fetch(`${API_BASE}/transactions?${new URLSearchParams(params)}`);
+     return res.json();
+   };
+
+   export const getTransactionDetail = async (id) => {
+     const res = await fetch(`${API_BASE}/transactions/${id}`);
+     return res.json();
+   };
+   ```
+
+**✏️ 미니 연습**
+- Q1: SPA에서 API 에러 처리는 어떻게?
+- Q2: SHAP 값을 막대 그래프로 표시하려면?
+
+**🎯 면접 Q&A**
+
+Q: "프론트엔드는 왜 React를 선택했나요?"
+> "금융권에서 React + Ant Design 조합이 가장 많이 사용됩니다. Ant Design의 Table, Descriptions 컴포넌트로 거래 목록과 상세 정보를 빠르게 구현할 수 있었습니다."
+
+Q: "SHAP 설명을 어떻게 보여주나요?"
+> "API에서 받은 SHAP 값을 Ant Design의 Progress 컴포넌트로 막대 그래프 형태로 시각화합니다. 양수(사기 방향)는 빨간색, 음수(정상 방향)는 초록색으로 구분합니다."
+
+---
+
+#### Day 9: Fusion 실험 (선택) ⭐⭐ (2024 논문 기반)
 
 **📚 핵심 개념**
 

@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  fds-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fds-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # 모델 파일 마운트 (이미지 재빌드 없이 모델 교체 가능)
+      - ./models:/app/models:ro
+    environment:
+      - MODELS_DIR=/app/models
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# 개발 모드 (코드 변경 시 자동 재시작)
+# docker compose -f docker-compose.yml -f docker-compose.dev.yml up

@@ -61,7 +61,8 @@ fds-system/
 │       ├── 1-5_ensemble.ipynb
 │       ├── 1-6_shap.ipynb
 │       ├── 1-7_fastapi.ipynb
-│       └── 1-8_fusion.ipynb     # ⭐ 2024 논문 기반 융합 실험
+│       ├── 1-8_react_admin.md   # React Admin 가이드
+│       └── 1-9_fusion.ipynb     # ⭐ 2024 논문 기반 융합 실험 (선택)
 │
 ├── src/                         # 프로덕션 코드
 │   ├── models/                  # ⭐ PyTorch 클래스 정의 (필수!)
@@ -941,7 +942,164 @@ Q: "모델 업데이트는 어떻게 하나요?"
 
 ---
 
-## 1-8: Fusion 실험 (Day 8) ⭐⭐
+## 1-8: React Admin (Day 8)
+
+### 필요 패키지
+```bash
+npx create-react-app fds-admin
+npm install antd axios recharts
+```
+
+### 세부 설명 리스트
+
+**1. 프로젝트 구조**
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── TransactionTable.jsx   # 거래 목록 테이블
+│   │   └── TransactionDetail.jsx  # 거래 상세 + SHAP 요인
+│   ├── pages/
+│   │   ├── Dashboard.jsx          # 메인 대시보드
+│   │   └── TransactionPage.jsx    # 거래 조회 페이지
+│   ├── api/
+│   │   └── client.js              # Axios 설정
+│   └── App.jsx
+├── package.json
+└── Dockerfile
+```
+
+**2. 핵심 화면 (2개)**
+- **거래 목록**: 테이블 (거래ID, 금액, 사기확률, top요인, 조치)
+- **거래 상세**: SHAP 요인 표시, 승인/차단 버튼
+
+**3. API 연동**
+```javascript
+// api/client.js
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:8000',
+});
+
+export const getTransactions = () => api.get('/transactions');
+export const getTransaction = (id) => api.get(`/transactions/${id}`);
+export const predict = (data) => api.post('/predict', data);
+```
+
+**4. 현업 스타일 (단순함 유지)**
+- 예쁜 그래프 X → 텍스트/테이블만
+- SHAP waterfall X → top 3 요인 텍스트
+- 분석가용 Admin 느낌
+
+### 실습 목록
+- 실습 1: React 프로젝트 설정 + Ant Design
+- 실습 2: 거래 목록 테이블 (TransactionTable)
+- 실습 3: 거래 상세 페이지 (SHAP 요인 표시)
+- 실습 4: FastAPI 연동
+- 실습 5: Docker 컨테이너화
+
+### 핵심 코드: 거래 테이블
+
+```jsx
+// components/TransactionTable.jsx
+import { Table, Tag } from 'antd';
+
+const columns = [
+  { title: '거래ID', dataIndex: 'transaction_id', key: 'id' },
+  { title: '금액', dataIndex: 'amount', key: 'amount',
+    render: (val) => `₩${val.toLocaleString()}` },
+  { title: '사기확률', dataIndex: 'fraud_probability', key: 'prob',
+    render: (val) => (
+      <Tag color={val > 0.5 ? 'red' : 'green'}>
+        {(val * 100).toFixed(1)}%
+      </Tag>
+    )},
+  { title: '주요요인', dataIndex: 'top_factors', key: 'factors',
+    render: (factors) => factors.slice(0, 2).map(f => f.feature).join(', ') },
+  { title: '조치', key: 'action',
+    render: () => <a>상세보기</a> },
+];
+
+export default function TransactionTable({ data }) {
+  return <Table columns={columns} dataSource={data} rowKey="transaction_id" />;
+}
+```
+
+### 핵심 코드: SHAP 요인 표시
+
+```jsx
+// components/TransactionDetail.jsx
+import { Card, List, Typography } from 'antd';
+const { Text } = Typography;
+
+export default function TransactionDetail({ transaction }) {
+  const { fraud_probability, top_factors } = transaction;
+
+  return (
+    <Card title={`사기 확률: ${(fraud_probability * 100).toFixed(1)}%`}>
+      <List
+        header={<Text strong>주요 판단 근거</Text>}
+        dataSource={top_factors}
+        renderItem={(item) => (
+          <List.Item>
+            <Text>{item.feature}</Text>
+            <Text type={item.impact > 0 ? 'danger' : 'success'}>
+              {item.impact > 0 ? '+' : ''}{item.impact.toFixed(3)}
+            </Text>
+          </List.Item>
+        )}
+      />
+    </Card>
+  );
+}
+```
+
+### 핵심 코드: Dockerfile
+
+```dockerfile
+# frontend/Dockerfile
+FROM node:18-alpine as build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/build /usr/share/nginx/html
+EXPOSE 80
+```
+
+### docker-compose 추가
+
+```yaml
+# docker-compose.yml에 추가
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+```
+
+### 면접 포인트
+
+Q: "프론트엔드는 왜 React를 선택했나요?"
+> "금융권에서 React 사용 비율이 가장 높고, 인력 수급이 용이합니다. Ant Design을 사용해 테이블 중심의 Admin UI를 빠르게 구축했습니다."
+
+Q: "SHAP 시각화는 어떻게 보여주나요?"
+> "현업에서는 실시간으로 복잡한 그래프를 띄우지 않습니다. top 3 요인을 텍스트로 표시하고, 상세 분석은 오프라인에서 Jupyter로 합니다. 이 방식이 응답 속도와 가독성 면에서 더 효율적입니다."
+
+---
+
+## 1-9: Fusion 실험 (Day 9) ⭐⭐ (선택)
 
 ### 필요 패키지
 ```python
@@ -1090,12 +1248,13 @@ Q: "3가지 융합 방법 중 어떤 것을 선택했나요?"
 | 1-2 | 4h | preprocessing.py, X_tabular, X_sequence |
 | 1-3 | 4h | 모델 비교 표, xgb_model.pkl, xgb_importance.csv |
 | 1-4 | 4h | src/models/lstm.py, lstm_model.pt |
-| 1-5 | 3h | 앙상블 성능 비교 표 (목표 미달 → 1-8) |
+| 1-5 | 3h | 앙상블 성능 비교 표 |
 | 1-6 | 3h | shap_explainer.py, 설명 시각화 |
 | 1-7 | 4h | FastAPI, Docker, 통합 테스트 |
-| 1-8 | 4h | 융합 방법 비교, fusion_model.pt ⭐ |
+| 1-8 | 4h | React Admin (거래 목록 + 상세) |
+| 1-9 | 4h | 융합 방법 비교, fusion_model.pt ⭐ (선택) |
 
-**총 약 29시간 (8일)**
+**총 약 33시간 (9일, 1-9 선택 시)**
 
 ---
 
@@ -1125,9 +1284,9 @@ Q: "3가지 융합 방법 중 어떤 것을 선택했나요?"
 | LSTM 튜닝 후 | 0.86 | 0.78 |
 | **Ensemble** | **0.89** | **0.84** |
 
-⚠️ 목표 AUC 0.90 미달 → 1-8 융합으로 해결
+⚠️ 목표 AUC 0.90 미달 시 → 1-9 융합으로 해결 (선택)
 
-### 4. 융합 방법 비교 (1-8) ⭐
+### 4. 융합 방법 비교 (1-9, 선택) ⭐
 
 | 방법 | AUC | 복잡도 |
 |------|-----|--------|
