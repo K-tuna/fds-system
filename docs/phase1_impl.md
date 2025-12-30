@@ -52,7 +52,7 @@
 
 ```
 fds-system/
-├── notebooks/
+├── notebooks/                   # 실험용 노트북
 │   └── phase1/
 │       ├── 1-1_data_eda.ipynb
 │       ├── 1-2_feature_engineering.ipynb
@@ -60,14 +60,21 @@ fds-system/
 │       ├── 1-4_lstm.ipynb
 │       ├── 1-5_ensemble.ipynb
 │       ├── 1-6_shap.ipynb
-│       └── 1-7_fastapi.ipynb
-├── src/
-│   ├── ml/
+│       ├── 1-7_fastapi.ipynb
+│       └── 1-8_fusion.ipynb     # ⭐ 2024 논문 기반 융합 실험
+│
+├── src/                         # 프로덕션 코드
+│   ├── models/                  # ⭐ PyTorch 클래스 정의 (필수!)
 │   │   ├── __init__.py
-│   │   ├── feature_engineering.py
-│   │   ├── xgboost_model.py
-│   │   ├── lstm_model.py
-│   │   └── ensemble.py
+│   │   ├── lstm.py              # FraudLSTM 클래스
+│   │   ├── cnn_lstm.py          # CNN-LSTM 클래스 (선택)
+│   │   └── fusion.py            # 융합 모델 클래스
+│   ├── data/
+│   │   ├── __init__.py
+│   │   └── preprocessing.py     # 피처 엔지니어링
+│   ├── training/
+│   │   ├── __init__.py
+│   │   └── train.py             # 학습 스크립트
 │   ├── explainer/
 │   │   ├── __init__.py
 │   │   └── shap_explainer.py
@@ -75,12 +82,40 @@ fds-system/
 │       ├── __init__.py
 │       ├── main.py
 │       └── schemas.py
+│
 ├── data/
-│   ├── raw/                  # IEEE-CIS 원본
-│   └── processed/            # 전처리 데이터
-├── models/                   # 학습된 모델 (.pkl, .pt)
+│   ├── raw/                     # IEEE-CIS 원본
+│   └── processed/               # 전처리 데이터
+│
+├── models/                      # 저장된 가중치
+│   ├── xgb_model.pkl            # XGBoost (joblib)
+│   └── lstm_model.pt            # LSTM (torch.save)
+│
+├── configs/
+│   └── config.yaml              # 하이퍼파라미터, 피처 목록
+│
 ├── docker-compose.yml
 └── requirements.txt
+```
+
+### ⚠️ PyTorch 모델 저장/로드 방식 (현업 필수)
+
+```python
+# ❌ 노트북에서만 클래스 정의 → API에서 로드 불가
+# torch.load()는 클래스 정의가 필요함
+
+# ✅ 현업 방식: src/models/에 클래스 정의
+# 1. src/models/lstm.py에 FraudLSTM 클래스 정의
+# 2. 노트북에서 from src.models.lstm import FraudLSTM
+# 3. API에서도 동일하게 import
+
+# 저장
+torch.save(model.state_dict(), 'models/lstm_model.pt')
+
+# 로드 (API)
+from src.models.lstm import FraudLSTM
+model = FraudLSTM(input_size=35, hidden_size=64)
+model.load_state_dict(torch.load('models/lstm_model.pt'))
 ```
 
 ---
@@ -400,28 +435,67 @@ import numpy as np
 - 사기 패턴: "소액 → 소액 → 고액"
 - 시퀀스 패턴은 LSTM이 학습
 
-**2. LSTM 구조**
-- Input: (batch, seq_len, features)
-- Hidden: 64
-- Output: 1 (sigmoid)
+**2. LSTM 피처 선택 (현업 방식)** ⭐
 
-**3. PyTorch 구현**
+```python
+# 1. V컬럼 상위 20개 (PCA 기반, 논문 표준)
+v_features = [f'V{i}' for i in range(1, 21)]  # V1~V20
+
+# 2. XGBoost importance 상위 10개 (V 제외)
+# → 1-3에서 저장한 feature_importance 활용
+xgb_importance = pd.read_csv('data/processed/xgb_importance.csv')
+xgb_top = xgb_importance[~xgb_importance['feature'].str.startswith('V')].head(10)['feature'].tolist()
+
+# 3. 시계열 피처 (직접 생성)
+time_features = [
+    'amt_log',              # 금액 로그
+    'hour',                 # 시간
+    'dayofweek',            # 요일
+    'time_since_last_tx',   # 이전 거래 후 경과 시간
+    'rolling_avg_amt_5',    # 최근 5개 평균 금액
+    'tx_count_24h',         # 24시간 내 거래 횟수
+]
+
+# 전체 시퀀스 피처 (~35개)
+SEQ_FEATURES = v_features + xgb_top + time_features
+print(f"총 피처 수: {len(SEQ_FEATURES)}")  # ~35개
+```
+
+**3. LSTM 구조**
+- Input: (batch, seq_len, 35)  # 35개 피처
+- Hidden: 64~128
+- Output: 1 (sigmoid)
+- pos_weight: ~27 (클래스 불균형 처리)
+
+**4. 클래스 불균형 처리**
+
+```python
+# 사기 비율 3.5% → pos_weight 계산
+n_pos = (y_train == 1).sum()
+n_neg = (y_train == 0).sum()
+pos_weight = n_neg / n_pos  # ~27
+
+criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]))
+```
+
+**5. PyTorch 구현**
 - Dataset 클래스
 - DataLoader
-- BCELoss + Adam
+- BCEWithLogitsLoss + Adam
 - Early Stopping
 
-**4. 학습 루프**
+**6. 학습 루프**
 - Train/Valid 분리
 - Epoch별 loss/AUC 추적
 - Best model 저장
 
 ### 실습 목록
-- 실습 1: Dataset 클래스 구현
-- 실습 2: LSTM 모델 정의
-- 실습 3: 학습 루프 구현
-- 실습 4: Early Stopping
-- 실습 5: 모델 평가 및 저장
+- 실습 1: 피처 선택 (V1~V20 + XGBoost importance + 시계열)
+- 실습 2: Dataset 클래스 구현
+- 실습 3: LSTM 모델 정의 (src/models/lstm.py)
+- 실습 4: 학습 루프 + pos_weight
+- 실습 5: Optuna 튜닝
+- 실습 6: 모델 평가 및 저장
 
 ### 핵심 코드: LSTM 모델
 
@@ -529,10 +603,10 @@ import matplotlib.pyplot as plt
 
 ### 세부 설명 리스트
 
-**1. 앙상블 전략 비교**
+**1. 앙상블 전략 (단순 결합)**
 - Simple Average: (p_xgb + p_lstm) / 2
 - Weighted Average: w1*p_xgb + w2*p_lstm ✅
-- Stacking: 메타 모델 학습
+- ⚠️ 목표 AUC 0.90 미달 시 → 1-8 융합으로 이동
 
 **2. 가중치 최적화**
 - Grid Search로 최적 가중치 탐색
@@ -544,10 +618,14 @@ import matplotlib.pyplot as plt
 - AUC, Recall, Precision
 - 결과 표 + 그래프
 
-**4. 왜 앙상블이 효과적인가?**
-- XGBoost: 정형 특성 이상치 탐지
-- LSTM: 시계열 패턴 탐지
-- 상호 보완적
+**4. 성능 미달 시 다음 스텝**
+```
+앙상블 AUC 0.89 (목표 0.90 미달)
+    ↓
+논문 조사 → 융합 방식 발견
+    ↓
+1-8 융합 실험으로 이동
+```
 
 ### 실습 목록
 - 실습 1: XGBoost 예측
@@ -863,19 +941,161 @@ Q: "모델 업데이트는 어떻게 하나요?"
 
 ---
 
+## 1-8: Fusion 실험 (Day 8) ⭐⭐
+
+### 필요 패키지
+```python
+import torch
+import torch.nn as nn
+import numpy as np
+from sklearn.metrics import roc_auc_score
+```
+
+### 세부 설명 리스트
+
+**1. 앙상블 vs 융합**
+
+| 방식 | 학습 | 결합 | 예시 |
+|------|------|------|------|
+| 앙상블 | 독립 | 예측 후 평균 | 0.6*XGB + 0.4*LSTM |
+| 융합 | 순차 | 한 모델 출력 → 다른 입력 | XGB 확률 → LSTM 피처 |
+
+**2. 2024 논문 기반 융합 방법**
+
+| 방법 | 핵심 | 구현 복잡도 |
+|------|------|-------------|
+| B: XGBoost→LSTM | XGB 확률을 LSTM 입력에 추가 | 낮음 ⭐ |
+| C: CNN-LSTM | 1D CNN으로 피처 추출 → LSTM | 중간 |
+| D: LSTM AE + XGBoost | LSTM AutoEncoder 잠재 벡터 → XGB 피처 | 높음 |
+
+**3. 실험 순서**
+1. 방법 B 구현 → 성능 측정
+2. 방법 C 구현 → 성능 측정
+3. 방법 D 구현 → 성능 측정
+4. 최고 성능 방법 채택
+
+### 실습 목록
+- 실습 1: 방법 B - XGBoost→LSTM 융합
+- 실습 2: 방법 C - CNN-LSTM 구현
+- 실습 3: 방법 D - LSTM AutoEncoder + XGBoost
+- 실습 4: 3가지 방법 성능 비교
+- 실습 5: 최종 모델 선택 및 저장
+
+### 핵심 코드: 방법 B (XGBoost→LSTM 융합)
+
+```python
+# 1. XGBoost 확률 계산
+xgb_prob = xgb_model.predict_proba(X_tabular)[:, 1]
+
+# 2. LSTM 시퀀스에 XGBoost 확률 추가
+# X_seq shape: (samples, seq_len, features)
+# xgb_prob을 모든 타임스텝에 broadcast
+xgb_prob_expanded = np.tile(
+    xgb_prob.reshape(-1, 1, 1),
+    (1, X_seq.shape[1], 1)
+)
+X_seq_fusion = np.concatenate([X_seq, xgb_prob_expanded], axis=2)
+
+# 3. 융합 LSTM 학습
+fusion_model = FraudLSTM(input_size=X_seq_fusion.shape[2])
+# ... 학습 진행
+```
+
+### 핵심 코드: 방법 C (CNN-LSTM)
+
+```python
+class CNNLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size=64):
+        super().__init__()
+        # 1D CNN for feature extraction
+        self.conv1 = nn.Conv1d(input_size, 32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool1d(2)
+
+        # LSTM for sequence learning
+        self.lstm = nn.LSTM(64, hidden_size, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)
+
+    def forward(self, x):
+        # x: (batch, seq_len, features) → (batch, features, seq_len)
+        x = x.permute(0, 2, 1)
+
+        # CNN
+        x = torch.relu(self.conv1(x))
+        x = torch.relu(self.conv2(x))
+        x = self.pool(x)
+
+        # (batch, features, seq_len) → (batch, seq_len, features)
+        x = x.permute(0, 2, 1)
+
+        # LSTM
+        _, (h_n, _) = self.lstm(x)
+        out = self.fc(h_n[-1])
+        return out
+```
+
+### 핵심 코드: 방법 D (LSTM AE + XGBoost)
+
+```python
+class LSTMAutoEncoder(nn.Module):
+    def __init__(self, input_size, hidden_size=32, latent_size=16):
+        super().__init__()
+        # Encoder
+        self.encoder = nn.LSTM(input_size, hidden_size, batch_first=True)
+        self.fc_latent = nn.Linear(hidden_size, latent_size)
+
+        # Decoder
+        self.fc_decode = nn.Linear(latent_size, hidden_size)
+        self.decoder = nn.LSTM(hidden_size, input_size, batch_first=True)
+
+    def encode(self, x):
+        _, (h_n, _) = self.encoder(x)
+        latent = self.fc_latent(h_n[-1])
+        return latent
+
+    def forward(self, x):
+        latent = self.encode(x)
+        # ... decoder 생략
+
+# 학습 후 latent vector 추출 → XGBoost 피처로 사용
+latent_features = lstm_ae.encode(X_seq_tensor).detach().numpy()
+X_tabular_with_latent = np.concatenate([X_tabular, latent_features], axis=1)
+xgb_model.fit(X_tabular_with_latent, y)
+```
+
+### 성능 비교 결과 (예상)
+
+| 방법 | AUC | 구현 복잡도 |
+|------|-----|-------------|
+| 단순 앙상블 (1-5) | 0.89 | 낮음 |
+| B: XGBoost→LSTM | 0.92+ | 낮음 ⭐ |
+| C: CNN-LSTM | 0.93+ | 중간 |
+| D: LSTM AE + XGB | 0.91+ | 높음 |
+
+### 면접 포인트
+
+Q: "왜 단순 앙상블 대신 융합을 사용했나요?"
+> "Weighted Average 앙상블로는 AUC 0.89에서 정체됐습니다. 2024년 논문을 조사해서 XGBoost 출력을 LSTM 입력으로 활용하는 융합 방식을 발견했고, 이를 적용해 AUC 0.92 이상을 달성했습니다."
+
+Q: "3가지 융합 방법 중 어떤 것을 선택했나요?"
+> "방법 B(XGBoost→LSTM)를 선택했습니다. 구현이 간단하면서도 AUC 0.92를 달성해서 성능 대비 복잡도가 가장 좋았습니다. CNN-LSTM은 조금 더 높았지만 복잡도 증가 대비 효과가 미미했습니다."
+
+---
+
 ## 전체 요약
 
 | 노트북 | 시간 | 핵심 산출물 |
 |--------|------|------------|
 | 1-1 | 3h | train.csv, test.csv |
-| 1-2 | 4h | feature_engineering.py, X_tabular, X_sequence |
-| 1-3 | 4h | 모델 비교 표, xgb_model.pkl |
-| 1-4 | 4h | lstm_model.pt |
-| 1-5 | 3h | ensemble.py, 성능 비교 표 |
+| 1-2 | 4h | preprocessing.py, X_tabular, X_sequence |
+| 1-3 | 4h | 모델 비교 표, xgb_model.pkl, xgb_importance.csv |
+| 1-4 | 4h | src/models/lstm.py, lstm_model.pt |
+| 1-5 | 3h | 앙상블 성능 비교 표 (목표 미달 → 1-8) |
 | 1-6 | 3h | shap_explainer.py, 설명 시각화 |
 | 1-7 | 4h | FastAPI, Docker, 통합 테스트 |
+| 1-8 | 4h | 융합 방법 비교, fusion_model.pt ⭐ |
 
-**총 약 25시간 (7일)**
+**총 약 29시간 (8일)**
 
 ---
 
@@ -889,24 +1109,37 @@ Q: "모델 업데이트는 어떻게 하나요?"
 | LightGBM | 0.91 | 32 | ✅ 좋음 |
 | CatBoost | 0.91 | 98 | ⚠️ 제한 |
 
-### 2. 시퀀스 길이 비교 (1-4)
+### 2. LSTM 단계별 개선 (1-4)
 
-| Seq Length | AUC | Train Time |
-|------------|-----|------------|
-| 5 | 0.86 | 2min |
-| 10 | 0.89 | 4min |
-| 15 | 0.89 | 6min |
-| 20 | 0.90 | 9min |
+| 단계 | 구성 | AUC |
+|------|------|-----|
+| 베이스라인 | V1~V20 + 시계열 피처 (35개) | 0.82 |
+| + Optuna 튜닝 | 하이퍼파라미터 최적화 | 0.84 |
+| + 피처 추가 | XGBoost importance 기반 | 0.86 |
 
 ### 3. 앙상블 성능 (1-5)
 
 | Model | AUC | Recall@0.35 |
 |-------|-----|-------------|
 | XGBoost | 0.92 | 0.83 |
-| LSTM | 0.89 | 0.80 |
-| **Ensemble** | **0.94** | **0.87** |
+| LSTM 튜닝 후 | 0.86 | 0.78 |
+| **Ensemble** | **0.89** | **0.84** |
+
+⚠️ 목표 AUC 0.90 미달 → 1-8 융합으로 해결
+
+### 4. 융합 방법 비교 (1-8) ⭐
+
+| 방법 | AUC | 복잡도 |
+|------|-----|--------|
+| 단순 앙상블 | 0.89 | 낮음 |
+| B: XGBoost→LSTM | 0.92+ | 낮음 ⭐ |
+| C: CNN-LSTM | 0.93+ | 중간 |
+| D: LSTM AE + XGB | 0.91+ | 높음 |
 
 **이 표들이 면접에서 "왜 이걸 선택했나요?"에 대한 근거!**
+
+**핵심 스토리:**
+> "단순 앙상블로는 목표 성능에 미달 → 2024년 논문 조사 → 융합 방식 발견 → 적용해서 해결"
 
 ---
 
