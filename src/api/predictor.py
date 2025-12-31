@@ -12,6 +12,17 @@ from .schemas import PredictRequest, PredictResponse, FeatureFactor
 
 logger = logging.getLogger(__name__)
 
+# 범주형 인코딩 매핑 (학습 시 사용된 LabelEncoder 기준)
+CATEGORY_MAPPINGS = {
+    "ProductCD": {"w": 0, "h": 1, "c": 2, "s": 3, "r": 4},
+    "card4": {"visa": 0, "mastercard": 1, "american express": 2, "discover": 3},
+    "card6": {"debit": 0, "credit": 1, "charge card": 2, "debit or credit": 3},
+    "DeviceType": {"desktop": 0, "mobile": 1},
+}
+
+# 문자열 피처 (hash 인코딩)
+STRING_FEATURES = {"P_emaildomain", "R_emaildomain", "DeviceInfo"}
+
 
 class FDSPredictor:
     """FDS 예측기 클래스
@@ -88,17 +99,25 @@ class FDSPredictor:
         # 요청 데이터를 딕셔너리로 변환
         data = request.model_dump(exclude={"transaction_id"})
 
-        # 누락된 피처는 0 또는 NaN으로 채움
+        # 누락된 피처는 0으로 채움, 범주형은 인코딩
         feature_dict = {}
         for fname in self.feature_names:
             if fname in data and data[fname] is not None:
-                feature_dict[fname] = data[fname]
+                val = data[fname]
+                # 범주형 인코딩 (매핑 테이블)
+                if fname in CATEGORY_MAPPINGS:
+                    val = CATEGORY_MAPPINGS[fname].get(str(val).lower(), 0)
+                # 문자열 피처는 해시 인코딩
+                elif fname in STRING_FEATURES:
+                    val = hash(str(val).lower()) % 10000  # 0-9999 범위
+                feature_dict[fname] = val
             else:
                 feature_dict[fname] = 0  # 기본값
 
-        # DataFrame 생성
+        # DataFrame 생성 (모든 값을 float으로 변환)
         df = pd.DataFrame([feature_dict])
-        return df[self.feature_names]  # 피처 순서 보장
+        df = df[self.feature_names].astype(float)  # 피처 순서 보장 + 타입 변환
+        return df
 
     def predict(self, request: PredictRequest) -> PredictResponse:
         """예측 수행

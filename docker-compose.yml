@@ -22,5 +22,16 @@ services:
       retries: 3
       start_period: 10s
 
+  fds-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fds-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - fds-api
+    restart: unless-stopped
+
 # 개발 모드 (코드 변경 시 자동 재시작)
 # docker compose -f docker-compose.yml -f docker-compose.dev.yml up
