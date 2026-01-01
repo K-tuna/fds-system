@@ -6,7 +6,8 @@ import time
 from contextlib import asynccontextmanager
 from typing import List
 
-from fastapi import FastAPI, HTTPException
+import pandas as pd
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .schemas import (
@@ -175,6 +176,135 @@ def predict_batch(requests: List[PredictRequest]):
         raise HTTPException(
             status_code=500,
             detail=f"예측 중 오류 발생: {str(e)}"
+        )
+
+
+@app.post(
+    "/predict/direct",
+    response_model=PredictResponse,
+    tags=["Prediction"]
+)
+def predict_direct(features: dict):
+    """이미 전처리된 피처로 직접 예측
+
+    /samples API에서 반환된 447개 피처를 그대로 사용합니다.
+    인코딩 변환 없이 바로 모델에 입력됩니다.
+    """
+    if predictor is None or not predictor.is_loaded:
+        raise HTTPException(
+            status_code=503,
+            detail="모델이 로딩되지 않았습니다."
+        )
+
+    start_time = time.time()
+
+    try:
+        response = predictor.predict_from_features(features)
+        elapsed = (time.time() - start_time) * 1000
+
+        logger.info(
+            f"직접 예측 완료: {features.get('transaction_id', 'UNKNOWN')} "
+            f"(prob={response.fraud_probability:.4f}, "
+            f"risk={response.risk_level}, "
+            f"time={elapsed:.1f}ms)"
+        )
+
+        return response
+
+    except Exception as e:
+        logger.error(f"직접 예측 오류: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"예측 중 오류 발생: {str(e)}"
+        )
+
+
+@app.post(
+    "/predict/direct/batch",
+    response_model=List[PredictResponse],
+    tags=["Prediction"]
+)
+def predict_direct_batch(features_list: List[dict]):
+    """배치 직접 예측
+
+    /samples API에서 반환된 447개 피처 리스트를 그대로 사용합니다.
+    """
+    if predictor is None or not predictor.is_loaded:
+        raise HTTPException(
+            status_code=503,
+            detail="모델이 로딩되지 않았습니다."
+        )
+
+    start_time = time.time()
+
+    try:
+        responses = predictor.predict_from_features_batch(features_list)
+        elapsed = (time.time() - start_time) * 1000
+
+        logger.info(
+            f"배치 직접 예측 완료: {len(features_list)}건 (time={elapsed:.1f}ms)"
+        )
+
+        return responses
+
+    except Exception as e:
+        logger.error(f"배치 직접 예측 오류: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"예측 중 오류 발생: {str(e)}"
+        )
+
+
+@app.get("/samples", tags=["Samples"])
+def get_samples(
+    count: int = Query(default=10, ge=10, le=100, description="샘플 개수 (10~100)")
+):
+    """실제 테스트 데이터에서 샘플 반환
+
+    test_features.csv에서 랜덤 샘플링하여 반환합니다.
+    실제 데이터 분포(~3.5% 사기)를 유지합니다.
+    """
+    try:
+        # 데이터 로드
+        data_path = os.path.join("data", "processed", "test_features.csv")
+        if not os.path.exists(data_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"테스트 데이터 파일을 찾을 수 없습니다: {data_path}"
+            )
+
+        df = pd.read_csv(data_path)
+        sample = df.sample(n=min(count, len(df)))
+
+        # 447개 피처 전체 반환 (이미 전처리된 데이터)
+        results = []
+        for idx, row in sample.iterrows():
+            # isFraud 제외한 모든 피처를 그대로 반환
+            features = row.drop("isFraud").to_dict()
+
+            # NaN 값을 0으로 변환 (JSON 직렬화 및 모델 입력용)
+            for key, value in features.items():
+                if pd.isna(value):
+                    features[key] = 0.0
+                elif isinstance(value, (int, float)):
+                    features[key] = float(value)
+
+            # 메타 정보 추가
+            features["transaction_id"] = f"TXN_{idx}"
+            features["_actual_label"] = int(row["isFraud"]) if pd.notna(row["isFraud"]) else 0
+
+            results.append(features)
+
+        logger.info(f"샘플 데이터 반환: {len(results)}건")
+        return results
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"샘플 로드 오류: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"샘플 데이터 로드 중 오류 발생: {str(e)}"
         )
 
 

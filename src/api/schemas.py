@@ -60,7 +60,8 @@ class PredictResponse(BaseModel):
 
     transaction_id: str = Field(..., description="거래 ID")
     fraud_probability: float = Field(..., ge=0, le=1, description="사기 확률")
-    is_fraud: bool = Field(..., description="사기 여부")
+    is_fraud: bool = Field(..., description="사기 여부 (차단 레벨일 때 True)")
+    risk_level: str = Field(..., description="위험도 레벨 (approve/verify/hold/block)")
     threshold: float = Field(..., description="사용된 임계값")
     top_factors: List[FeatureFactor] = Field(..., description="Top 기여 피처")
     explanation_text: str = Field(..., description="자연어 설명")
@@ -71,6 +72,7 @@ class PredictResponse(BaseModel):
                 "transaction_id": "TXN_001",
                 "fraud_probability": 0.87,
                 "is_fraud": True,
+                "risk_level": "block",
                 "threshold": 0.18,
                 "top_factors": [
                     {

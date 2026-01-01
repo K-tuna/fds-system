@@ -23,6 +23,27 @@ CATEGORY_MAPPINGS = {
 # 문자열 피처 (hash 인코딩)
 STRING_FEATURES = {"P_emaildomain", "R_emaildomain", "DeviceInfo"}
 
+# 다단계 위험도 임계값 (최적 threshold 0.18 기준)
+# 모델이 0.18 이상이면 "사기일 가능성 있음"으로 판단
+RISK_THRESHOLDS = {
+    "approve": 0.18,   # 0.00 ~ 0.18: 승인 (사기 가능성 낮음)
+    "verify": 0.40,    # 0.18 ~ 0.40: 추가인증 (의심)
+    "hold": 0.65,      # 0.40 ~ 0.65: 보류 (높은 의심)
+    # 0.65 이상: 차단 (사기 확률 높음)
+}
+
+
+def get_risk_level(prob: float) -> str:
+    """확률에 따른 위험도 레벨 반환"""
+    if prob < RISK_THRESHOLDS["approve"]:
+        return "approve"   # 승인
+    elif prob < RISK_THRESHOLDS["verify"]:
+        return "verify"    # 추가인증
+    elif prob < RISK_THRESHOLDS["hold"]:
+        return "hold"      # 보류
+    else:
+        return "block"     # 차단
+
 
 class FDSPredictor:
     """FDS 예측기 클래스
@@ -136,7 +157,8 @@ class FDSPredictor:
 
         # 2. 예측
         prob = float(self.xgb_model.predict_proba(features)[0, 1])
-        is_fraud = prob >= self.threshold
+        risk_level = get_risk_level(prob)
+        is_fraud = risk_level == "block"  # 차단 레벨만 사기로 판정
 
         # 3. SHAP 설명 생성
         top_factors = []
@@ -163,6 +185,7 @@ class FDSPredictor:
             transaction_id=request.transaction_id,
             fraud_probability=prob,
             is_fraud=is_fraud,
+            risk_level=risk_level,
             threshold=self.threshold,
             top_factors=top_factors,
             explanation_text=explanation_text
@@ -181,3 +204,91 @@ class FDSPredictor:
             예측 응답 리스트
         """
         return [self.predict(req) for req in requests]
+
+    def predict_from_features(self, features: Dict[str, Any]) -> PredictResponse:
+        """이미 전처리된 피처로 예측 (인코딩 변환 없이 바로 사용)
+
+        /samples API에서 반환한 447개 피처를 그대로 사용합니다.
+        test_features.csv는 이미 전처리된 상태이므로 추가 변환 불필요.
+
+        Args:
+            features: 전처리된 피처 딕셔너리 (447개 피처 + transaction_id + _actual_label)
+
+        Returns:
+            예측 응답
+        """
+        if not self._is_loaded:
+            raise RuntimeError("모델이 로딩되지 않았습니다. load_models()를 먼저 호출하세요.")
+
+        # 메타 정보 추출
+        transaction_id = features.get("transaction_id", "UNKNOWN")
+
+        # transaction_id, _actual_label 제외한 피처만 추출
+        feature_values = {
+            k: v for k, v in features.items()
+            if k not in ["transaction_id", "_actual_label"]
+        }
+
+        # DataFrame 생성 (피처 순서 맞추기)
+        df = pd.DataFrame([feature_values])
+
+        # 피처 순서 정렬 (모델 학습 시 순서와 일치)
+        # 누락된 피처는 0으로, 추가 피처는 무시
+        aligned_features = {}
+        for fname in self.feature_names:
+            if fname in feature_values:
+                aligned_features[fname] = feature_values[fname]
+            else:
+                aligned_features[fname] = 0.0
+
+        df = pd.DataFrame([aligned_features])
+        df = df[self.feature_names].astype(float)
+
+        # 예측
+        prob = float(self.xgb_model.predict_proba(df)[0, 1])
+        risk_level = get_risk_level(prob)
+        is_fraud = risk_level == "block"
+
+        # SHAP 설명 생성
+        top_factors = []
+        explanation_text = ""
+
+        if self.explainer is not None:
+            try:
+                explanation = self.explainer.create_response(
+                    df,
+                    sample_idx=0,
+                    threshold=self.threshold,
+                    top_k=5
+                )
+                top_factors = [
+                    FeatureFactor(**f) for f in explanation["top_factors"]
+                ]
+                explanation_text = explanation["explanation_text"]
+            except Exception as e:
+                logger.warning(f"SHAP 설명 생성 실패: {e}")
+                explanation_text = "설명을 생성할 수 없습니다."
+
+        return PredictResponse(
+            transaction_id=transaction_id,
+            fraud_probability=prob,
+            is_fraud=is_fraud,
+            risk_level=risk_level,
+            threshold=self.threshold,
+            top_factors=top_factors,
+            explanation_text=explanation_text
+        )
+
+    def predict_from_features_batch(
+        self,
+        features_list: List[Dict[str, Any]]
+    ) -> List[PredictResponse]:
+        """배치 직접 예측
+
+        Args:
+            features_list: 전처리된 피처 딕셔너리 리스트
+
+        Returns:
+            예측 응답 리스트
+        """
+        return [self.predict_from_features(f) for f in features_list]

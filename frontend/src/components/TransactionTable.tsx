@@ -19,13 +19,26 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
+import type { RiskLevel } from "@/api/client"
+
 export interface Transaction {
   transaction_id: string
   amount: number
   fraud_probability: number
   is_fraud: boolean
+  risk_level?: RiskLevel    // 다단계 위험도
   top_factors?: Array<{ feature: string; impact: number }>
   explanation_text?: string
+  _analyzed?: boolean       // 분석 완료 여부
+  _actual_label?: number    // 실제 정답 (0: 정상, 1: 사기)
+}
+
+// 위험도 레벨별 표시 설정
+const RISK_LEVEL_CONFIG = {
+  approve: { label: "승인", variant: "success" as const, color: "text-green-600" },
+  verify: { label: "추가인증", variant: "warning" as const, color: "text-yellow-600" },
+  hold: { label: "보류", variant: "secondary" as const, color: "text-orange-600" },
+  block: { label: "차단", variant: "destructive" as const, color: "text-red-600" },
 }
 
 const columns: ColumnDef<Transaction>[] = [
@@ -38,13 +51,17 @@ const columns: ColumnDef<Transaction>[] = [
     header: "금액",
     cell: ({ row }) => {
       const amount = row.getValue("amount") as number
-      return <span className="font-medium">₩{amount.toLocaleString()}</span>
+      return <span className="font-medium">${amount.toLocaleString()}</span>
     },
   },
   {
     accessorKey: "fraud_probability",
     header: "사기 확률",
     cell: ({ row }) => {
+      const analyzed = row.original._analyzed
+      if (!analyzed) {
+        return <span className="text-gray-400">-</span>
+      }
       const prob = row.getValue("fraud_probability") as number
       const percent = (prob * 100).toFixed(1)
       return (
@@ -59,13 +76,22 @@ const columns: ColumnDef<Transaction>[] = [
     },
   },
   {
-    accessorKey: "is_fraud",
+    accessorKey: "risk_level",
     header: "판정",
     cell: ({ row }) => {
-      const isFraud = row.getValue("is_fraud") as boolean
+      const analyzed = row.original._analyzed
+      if (!analyzed) {
+        return (
+          <Badge variant="secondary">
+            판단 안함
+          </Badge>
+        )
+      }
+      const riskLevel = row.original.risk_level || "approve"
+      const config = RISK_LEVEL_CONFIG[riskLevel]
       return (
-        <Badge variant={isFraud ? "destructive" : "success"}>
-          {isFraud ? "사기" : "정상"}
+        <Badge variant={config.variant} className={config.color}>
+          {config.label}
         </Badge>
       )
     },

@@ -57,7 +57,7 @@ export function TransactionDetail({
           </div>
           <div>
             <p className="text-sm text-muted-foreground">거래 금액</p>
-            <p className="font-medium text-lg">₩{amount.toLocaleString()}</p>
+            <p className="font-medium text-lg">${amount.toLocaleString()}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">사기 확률</p>

@@ -6,42 +6,25 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   checkHealth,
-  predictFraudBatch,
-  type PredictRequest,
+  predictDirectBatch,
+  getSamples,
   type HealthResponse,
 } from "@/api/client"
 
-// 샘플 거래 데이터 생성
-function generateSampleTransactions(): PredictRequest[] {
-  const productCDs = ["W", "C", "R", "H", "S"]
-  const card4s = ["visa", "mastercard", "discover", "american express"]
-  const card6s = ["debit", "credit"]
-  const deviceTypes = ["desktop", "mobile"]
-
-  return Array.from({ length: 20 }, (_, i) => ({
-    transaction_id: `TXN_${String(i + 1).padStart(3, "0")}`,
-    TransactionAmt: Math.floor(Math.random() * 5000000) + 10000,
-    ProductCD: productCDs[Math.floor(Math.random() * productCDs.length)],
-    card1: Math.floor(Math.random() * 10000) + 1000,
-    card2: Math.floor(Math.random() * 500) + 100,
-    card3: Math.floor(Math.random() * 200) + 50,
-    card4: card4s[Math.floor(Math.random() * card4s.length)],
-    card5: Math.floor(Math.random() * 300) + 100,
-    card6: card6s[Math.floor(Math.random() * card6s.length)],
-    hour: Math.floor(Math.random() * 24),
-    addr1: Math.floor(Math.random() * 500) + 100,
-    addr2: Math.floor(Math.random() * 100) + 10,
-    dist1: Math.random() * 100,
-    P_emaildomain: Math.random() > 0.7 ? "gmail.com" : "anonymous.com",
-    DeviceType: deviceTypes[Math.floor(Math.random() * deviceTypes.length)],
-  }))
-}
-
 export function Dashboard() {
+  // 샘플 관련 상태 (447개 피처 전체)
+  const [sampleCount, setSampleCount] = useState(10)
+  const [samples, setSamples] = useState<Record<string, unknown>[]>([])
+  const [isAnalyzed, setIsAnalyzed] = useState(false)
+
+  // 분석 결과 상태
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null)
-  const [loading, setLoading] = useState(false)
+
+  // 로딩/에러 상태
+  const [loadingSamples, setLoadingSamples] = useState(false)
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [health, setHealth] = useState<HealthResponse | null>(null)
 
@@ -52,41 +35,80 @@ export function Dashboard() {
       .catch(() => setHealth(null))
   }, [])
 
-  // 거래 예측 실행
-  const handlePredict = async () => {
-    setLoading(true)
+  // 샘플 데이터 로드 (447개 피처 전체)
+  const handleLoadSamples = async () => {
+    setLoadingSamples(true)
     setError(null)
+    setIsAnalyzed(false)
+    setSelectedTransaction(null)
 
     try {
-      const sampleData = generateSampleTransactions()
-      const results = await predictFraudBatch(sampleData)
+      const data = await getSamples(sampleCount)
+      setSamples(data)
 
+      // 샘플을 테이블에 표시 (분석 전 상태)
       setTransactions(
-        results.map((r) => ({
-          transaction_id: r.transaction_id,
-          amount:
-            sampleData.find((s) => s.transaction_id === r.transaction_id)
-              ?.TransactionAmt || 0,
-          fraud_probability: r.fraud_probability,
-          is_fraud: r.is_fraud,
-          top_factors: r.top_factors,
-          explanation_text: r.explanation_text,
+        data.map((s) => ({
+          transaction_id: s.transaction_id as string,
+          amount: s.TransactionAmt as number,
+          fraud_probability: 0,
+          is_fraud: false,
+          top_factors: [],
+          explanation_text: "",
+          _analyzed: false,
+          _actual_label: s._actual_label as number,
         }))
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : "예측 중 오류 발생")
+      setError(err instanceof Error ? err.message : "샘플 로드 중 오류 발생")
     } finally {
-      setLoading(false)
+      setLoadingSamples(false)
     }
   }
 
-  // 통계 계산
+  // 분석 실행 (직접 예측 - 447개 피처 그대로 전달)
+  const handleAnalyze = async () => {
+    if (samples.length === 0) return
+
+    setLoadingAnalysis(true)
+    setError(null)
+
+    try {
+      // 직접 예측 API 호출 (인코딩 변환 없이 바로 모델에 입력)
+      const results = await predictDirectBatch(samples)
+
+      setTransactions(
+        results.map((r) => {
+          const sample = samples.find((s) => s.transaction_id === r.transaction_id)
+          return {
+            transaction_id: r.transaction_id,
+            amount: (sample?.TransactionAmt as number) || 0,
+            fraud_probability: r.fraud_probability,
+            is_fraud: r.is_fraud,
+            risk_level: r.risk_level,
+            top_factors: r.top_factors,
+            explanation_text: r.explanation_text,
+            _analyzed: true,
+            _actual_label: sample?._actual_label as number,
+          }
+        })
+      )
+      setIsAnalyzed(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "분석 중 오류 발생")
+    } finally {
+      setLoadingAnalysis(false)
+    }
+  }
+
+  // 통계 계산 (분석 후에만)
   const stats = {
     total: transactions.length,
-    fraud: transactions.filter((t) => t.is_fraud).length,
-    normal: transactions.filter((t) => !t.is_fraud).length,
+    fraud: isAnalyzed ? transactions.filter((t) => t.is_fraud).length : 0,
+    normal: isAnalyzed ? transactions.filter((t) => !t.is_fraud).length : 0,
+    pending: isAnalyzed ? 0 : transactions.length,
     avgProbability:
-      transactions.length > 0
+      isAnalyzed && transactions.length > 0
         ? transactions.reduce((sum, t) => sum + t.fraud_probability, 0) /
           transactions.length
         : 0,
@@ -116,10 +138,43 @@ export function Dashboard() {
 
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* 컨트롤 */}
-        <div className="flex gap-4">
-          <Button onClick={handlePredict} disabled={loading || !health}>
-            {loading ? "분석 중..." : "샘플 거래 분석"}
+        <div className="flex items-center gap-4">
+          {/* 드롭다운 */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="sampleCount" className="text-sm font-medium">
+              샘플 개수:
+            </label>
+            <select
+              id="sampleCount"
+              value={sampleCount}
+              onChange={(e) => setSampleCount(Number(e.target.value))}
+              className="border rounded px-3 py-2 bg-background"
+            >
+              {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n}개
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 샘플 로드 버튼 */}
+          <Button
+            onClick={handleLoadSamples}
+            disabled={loadingSamples || !health}
+            variant="outline"
+          >
+            {loadingSamples ? "로드 중..." : "샘플 로드"}
           </Button>
+
+          {/* 분석 실행 버튼 */}
+          <Button
+            onClick={handleAnalyze}
+            disabled={loadingAnalysis || samples.length === 0 || !health}
+          >
+            {loadingAnalysis ? "분석 중..." : "분석 실행"}
+          </Button>
+
           {error && (
             <Badge variant="destructive" className="self-center">
               {error}
@@ -143,11 +198,13 @@ export function Dashboard() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm text-muted-foreground">
-                  사기 거래
+                  {isAnalyzed ? "사기 거래" : "판단 대기"}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-red-500">{stats.fraud}</p>
+                <p className={`text-3xl font-bold ${isAnalyzed ? "text-red-500" : "text-gray-400"}`}>
+                  {isAnalyzed ? stats.fraud : stats.pending}
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -157,8 +214,8 @@ export function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-green-500">
-                  {stats.normal}
+                <p className={`text-3xl font-bold ${isAnalyzed ? "text-green-500" : "text-gray-400"}`}>
+                  {isAnalyzed ? stats.normal : "-"}
                 </p>
               </CardContent>
             </Card>
@@ -170,7 +227,7 @@ export function Dashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold">
-                  {(stats.avgProbability * 100).toFixed(1)}%
+                  {isAnalyzed ? `${(stats.avgProbability * 100).toFixed(1)}%` : "-"}
                 </p>
               </CardContent>
             </Card>
@@ -191,7 +248,7 @@ export function Dashboard() {
                 {...selectedTransaction}
                 top_factors={selectedTransaction.top_factors || []}
                 explanation_text={
-                  selectedTransaction.explanation_text || "설명 없음"
+                  selectedTransaction.explanation_text || "분석 실행 후 확인 가능"
                 }
                 onClose={() => setSelectedTransaction(null)}
               />
