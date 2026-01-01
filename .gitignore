@@ -33,9 +33,11 @@ models/*
 *.pth
 *.onnx
 
-# IDE
+# IDE & AI Tools
 .idea/
 .vscode/
+.claude/
+.cursor/
 *.swp
 *.swo
 
@@ -57,6 +59,19 @@ docker-compose.override.yml
 
 # Serena
 .serena/
+
+# ML Library Cache
+catboost_info/
+lightgbm_info/
+mlruns/
+wandb/
+optuna-*.db
+
+# Node.js (frontend)
+node_modules/
+.next/
+.nuxt/
+.output/
 
 # Misc
 *.bak
