@@ -97,8 +97,8 @@
 **포트폴리오 레벨:** 기본
 
 **면접 어필 포인트:**
-- "XGBoost vs LSTM 비교 실험"
-- "앙상블로 AUC 2% 향상"
+- "XGBoost vs LSTM 비교 실험 → LSTM AUC 0.70으로 효과 없음 판단"
+- "앙상블 실험: +0.12% → 복잡도 대비 효과 분석 후 XGBoost 단독 채택"
 - "SHAP으로 설명 가능한 AI"
 - "React Admin으로 SHAP 시각화"
 
@@ -300,3 +300,4 @@ Phase 3 완료 후:
 |------|-----------|
 | 2024-12-24 | 초안 작성 |
 | 2024-12-31 | Phase 1에 React Admin(Day 8), Fusion(Day 9) 추가 |
+| 2025-01-02 | 1-7 FastAPI 완료, API 설계 결함 수정, Recall 90.55% 달성 |

@@ -41,20 +41,19 @@
 | 1-4 | LSTM | ✅ |
 | 1-5 | Ensemble | ✅ |
 | 1-6 | SHAP | ✅ |
-| 1-7 | FastAPI + Docker | 🎯 **다음** |
-| 1-8 | React Admin | ⏳ |
+| 1-7 | FastAPI + Docker | ✅ |
+| 1-8 | React Admin | 🎯 **다음** |
 | 1-9 | Fusion (선택) | ⏳ |
 
-**다음 작업**: 1-7 FastAPI 배포
+**다음 작업**: 1-8 React Admin UI
 
 ---
 
 ## 프로젝트 개요
 
-금융 이상거래 탐지(FDS) 시스템. XGBoost + LSTM 앙상블 + SHAP 설명.
-- 정형 특성 탐지 (XGBoost)
-- 시계열 패턴 탐지 (LSTM)
-- 앙상블로 성능 향상 (AUC 0.92 → 0.94)
+금융 이상거래 탐지(FDS) 시스템. XGBoost 기반 + SHAP 설명.
+- 정형 특성 탐지 (XGBoost) - AUC 0.91, Recall 90.55%
+- LSTM 실험 완료 (AUC 0.70 → 앙상블 효과 미미, API 미적용)
 - SHAP 기반 설명 (XAI)
 
 ## 기술 스택
@@ -152,11 +151,13 @@ pip install fastapi uvicorn
 
 ## 핵심 면접 포인트
 
-1. **XGBoost 선택**: 정형 데이터에서 AUC 최고 + SHAP 호환성
-2. **LSTM 추가**: 시계열 패턴 학습 → 앙상블로 AUC 2% 향상
-3. **앙상블**: Weighted Average (0.6:0.4), 실험으로 가중치 최적화
-4. **Threshold 최적화**: FN:FP = 10:1 비용 기반
-5. **SHAP 통합 설명**: TreeExplainer + DeepExplainer 결합
+1. **XGBoost 선택**: 정형 데이터에서 AUC 0.91 + SHAP 호환성
+2. **4단계 위험도**: approve/verify/hold/block (Threshold 0.18 기준)
+3. **Recall 90.55%**: 현업 기준(80-95%) 충족
+4. **Threshold 최적화**: FN:FP = 10:1 비용 기반 → 0.18
+5. **SHAP 설명**: TreeExplainer로 Top 5 피처 설명
+6. **학습-서빙 일관성**: API 설계 결함 발견 및 해결 경험
+7. **앙상블 실험**: LSTM 추가 시 +0.12% → 복잡도 대비 효과 없어 XGBoost 단독 채택
 
 ## 데이터
 

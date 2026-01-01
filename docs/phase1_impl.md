@@ -409,7 +409,7 @@ Q: "왜 XGBoost를 선택했나요?"
 > "3개 모델을 동일 조건에서 비교했습니다. XGBoost가 AUC 0.92로 가장 높았고, SHAP TreeExplainer 호환성도 최상이었습니다."
 
 Q: "Threshold는 어떻게 정했나요?"
-> "FDS에서 FN(놓친 사기)이 FP(오탐)보다 비용이 큽니다. FN:FP = 10:1로 비용 함수를 정의하고 최소화하는 Threshold 0.35를 찾았습니다."
+> "FDS에서 FN(놓친 사기)이 FP(오탐)보다 비용이 큽니다. FN:FP = 10:1로 비용 함수를 정의하고 최소화하는 Threshold 0.18을 찾았습니다. 이 Threshold에서 Recall 90.55%를 달성했습니다."
 
 Q: "n_estimators는 어떻게 정했나요?"
 > "Early Stopping을 사용했습니다. n_estimators=1000으로 설정하고, validation AUC가 50 epoch 연속 개선 없으면 중단합니다. 실제로는 약 300개 트리에서 수렴했습니다."
@@ -593,7 +593,7 @@ Q: "왜 Transformer가 아닌가요?"
 
 ---
 
-## 1-5: Ensemble + 평가 (Day 5) ⭐
+## 1-5: Ensemble 실험 + 평가 (Day 5) ⭐
 
 ### 필요 패키지
 ```python
@@ -604,36 +604,30 @@ import matplotlib.pyplot as plt
 
 ### 세부 설명 리스트
 
-**1. 앙상블 전략 (단순 결합)**
-- Simple Average: (p_xgb + p_lstm) / 2
-- Weighted Average: w1*p_xgb + w2*p_lstm ✅
-- ⚠️ 목표 AUC 0.90 미달 시 → 1-8 융합으로 이동
+**1. 앙상블 실험 결과**
+- LSTM AUC 0.70으로 예상보다 낮음
+- 앙상블해도 +0.12% 향상에 그침
+- **결론: XGBoost 단독 채택**
 
-**2. 가중치 최적화**
-- Grid Search로 최적 가중치 탐색
-- Validation set 기준
-- 결과: XGBoost 0.6, LSTM 0.4
-
-**3. 성능 비교**
-- 단독 모델 vs 앙상블
-- AUC, Recall, Precision
-- 결과 표 + 그래프
-
-**4. 성능 미달 시 다음 스텝**
+**2. 실험 결과**
 ```
-앙상블 AUC 0.89 (목표 0.90 미달)
-    ↓
-논문 조사 → 융합 방식 발견
-    ↓
-1-8 융합 실험으로 이동
+XGBoost 단독: AUC 0.9042 → 채택
+LSTM 단독:    AUC 0.7054 → 성능 낮음
+앙상블:       AUC 0.9054 → +0.12% (효과 미미)
+최적 가중치:  XGBoost 90%, LSTM 10%
 ```
+
+**3. 채택 근거**
+- +0.12% 향상은 LSTM 서빙 비용 대비 효과 없음
+- 복잡도 증가 (PyTorch, 시퀀스 생성) vs 성능 향상 trade-off
+- XGBoost 단독으로 Recall 90.55% 달성
 
 ### 실습 목록
 - 실습 1: XGBoost 예측
 - 실습 2: LSTM 예측
 - 실습 3: 가중치 최적화 (Grid Search)
-- 실습 4: 앙상블 예측
-- 실습 5: 성능 비교 표 + 시각화
+- 실습 4: 성능 비교 → XGBoost 단독 채택 결론
+- 실습 5: 복잡도 대비 효과 분석
 
 ### 핵심 코드: 가중치 최적화
 
@@ -681,10 +675,10 @@ plt.show()
 ### 면접 포인트
 
 Q: "앙상블로 얼마나 성능이 올랐나요?"
-> "XGBoost 단독 AUC 0.92, LSTM 단독 0.89였습니다. Weighted Average (0.6:0.4)로 앙상블하니 0.94로 향상됐습니다."
+> "LSTM AUC가 0.70으로 낮아서, 앙상블해도 +0.12% 향상에 그쳤습니다. LSTM 서빙 비용 대비 효과가 없어서 XGBoost 단독을 채택했습니다."
 
-Q: "왜 두 모델이 상호 보완적인가요?"
-> "XGBoost는 단일 거래의 정형 특성을 잡고, LSTM은 거래 시퀀스의 패턴을 잡습니다. 서로 다른 관점에서 사기를 탐지하므로 앙상블 효과가 큽니다."
+Q: "왜 LSTM이 효과가 없었나요?"
+> "IEEE-CIS 데이터 특성상, 시계열 패턴보다 정형 피처(금액, 시간, 카드정보)가 더 결정적이었습니다. 모든 문제에 딥러닝이 최선은 아닙니다."
 
 ---
 
@@ -704,26 +698,17 @@ import numpy as np
 - 전체 피처 중요도
 - 개별 예측 설명
 
-**2. LSTM 설명: DeepExplainer**
-- 딥러닝 모델용
-- Background 데이터 필요
-- 시퀀스 피처 기여도
-
-**3. 앙상블 설명 통합**
-- 가중치로 SHAP 값 합산
-- 정형 + 시계열 피처 통합
-- Top K 피처 추출
-
-**4. 자연어 설명 생성**
+**2. 자연어 설명 생성**
 - 피처명 → 설명 매핑
 - 방향 (증가/감소) 포함
+- Top 5 피처 추출
 
 ### 실습 목록
 - 실습 1: XGBoost SHAP 계산
 - 실습 2: SHAP Summary Plot
-- 실습 3: LSTM SHAP 계산 (DeepExplainer)
-- 실습 4: 앙상블 SHAP 통합
-- 실습 5: 자연어 설명 생성
+- 실습 3: 개별 예측 설명
+- 실습 4: 자연어 설명 생성
+- 실습 5: API 응답 형태로 변환
 
 ### 핵심 코드: XGBoost SHAP
 
@@ -736,57 +721,27 @@ shap_values_xgb = explainer_xgb.shap_values(X_test_tabular)
 shap.summary_plot(shap_values_xgb, X_test_tabular, max_display=10)
 ```
 
-### 핵심 코드: LSTM SHAP
+### 핵심 코드: 자연어 설명 생성
 
 ```python
-# DeepExplainer (배경 데이터 필요)
-background = X_train_seq[:100]  # 배경 샘플
-explainer_lstm = shap.DeepExplainer(lstm_model, torch.FloatTensor(background))
-shap_values_lstm = explainer_lstm.shap_values(torch.FloatTensor(X_test_seq[:10]))
-```
-
-### 핵심 코드: 통합 설명
-
-```python
-def get_ensemble_explanation(shap_xgb, shap_lstm, feature_names_xgb, feature_names_lstm,
-                              w_xgb=0.6, top_k=5):
-    """앙상블 SHAP 설명 생성"""
-    # XGBoost Top 피처
-    xgb_importance = np.abs(shap_xgb).mean(axis=0)
-    xgb_top_idx = np.argsort(xgb_importance)[-top_k:][::-1]
-
-    # LSTM 시퀀스 영향도 (평균)
-    lstm_impact = np.abs(shap_lstm).mean()
-
-    explanation = {
-        'tabular_features': [
-            {
-                'feature': feature_names_xgb[i],
-                'importance': xgb_importance[i] * w_xgb,
-                'direction': 'increase' if shap_xgb[i] > 0 else 'decrease'
-            }
-            for i in xgb_top_idx
-        ],
-        'sequence_impact': lstm_impact * (1 - w_xgb)
-    }
-    return explanation
-
-# 자연어 변환
+# 피처명 → 설명 매핑
 FEATURE_DESC = {
     'TransactionAmt': '거래 금액',
     'hour': '거래 시간',
     'card1_fraud_rate': '카드 사기 이력',
 }
 
-def to_natural_language(explanation):
-    lines = ["[사기 판단 근거]"]
-    for f in explanation['tabular_features'][:3]:
-        name = FEATURE_DESC.get(f['feature'], f['feature'])
-        direction = "높음" if f['direction'] == 'increase' else "낮음"
-        lines.append(f"- {name}: 사기 확률 {direction}")
+def to_natural_language(shap_values, feature_names, top_k=5):
+    """SHAP 값을 자연어 설명으로 변환"""
+    # Top K 피처 추출
+    importance = np.abs(shap_values)
+    top_idx = np.argsort(importance)[-top_k:][::-1]
 
-    if explanation['sequence_impact'] > 0.1:
-        lines.append("- 최근 거래 패턴: 비정상 감지")
+    lines = ["[사기 판단 근거]"]
+    for i in top_idx:
+        name = FEATURE_DESC.get(feature_names[i], feature_names[i])
+        direction = "높음" if shap_values[i] > 0 else "낮음"
+        lines.append(f"- {name}: 사기 확률 {direction}")
 
     return "\n".join(lines)
 ```
@@ -794,10 +749,10 @@ def to_natural_language(explanation):
 ### 면접 포인트
 
 Q: "왜 SHAP을 선택했나요?"
-> "SHAP은 이론적 기반(Shapley Value)이 탄탄하고, TreeExplainer와 DeepExplainer로 XGBoost와 LSTM 모두 설명할 수 있습니다."
+> "SHAP은 이론적 기반(Shapley Value)이 탄탄하고, XGBoost의 TreeExplainer로 빠르고 정확한 설명이 가능합니다."
 
-Q: "앙상블 모델은 어떻게 설명하나요?"
-> "각 모델의 SHAP 값을 앙상블 가중치로 합칩니다. 정형 피처와 시계열 패턴 모두 포함된 통합 설명을 제공합니다."
+Q: "설명은 어떻게 보여주나요?"
+> "TreeExplainer로 피처별 기여도를 계산하고, Top 5 피처를 자연어로 변환해서 제공합니다. 예: '거래 금액이 높음 → 사기 확률 증가'"
 
 ---
 
@@ -887,17 +842,17 @@ def predict(transaction: Transaction):
     with torch.no_grad():
         p_lstm = lstm_model(torch.FloatTensor(X_sequence).unsqueeze(0)).item()
 
-    # 3. 앙상블
-    p_ensemble = 0.6 * p_xgb + 0.4 * p_lstm
+    # 3. XGBoost 단독 사용 (앙상블 효과 미미하여 채택)
+    # 참고: 앙상블 실험에서 p = 0.9*xgb + 0.1*lstm → +0.12% 향상에 그침
 
     # 4. SHAP 설명
-    explanation = generate_explanation(X_tabular, X_sequence)
+    explanation = generate_explanation(X_tabular)
 
     return PredictionResponse(
-        fraud_probability=p_ensemble,
-        model_scores={"xgboost": p_xgb, "lstm": p_lstm, "ensemble": p_ensemble},
+        fraud_probability=p_xgb,
+        model_scores={"xgboost": p_xgb},
         top_factors=explanation,
-        is_fraud=p_ensemble > 0.35
+        is_fraud=p_xgb > 0.18  # 최적화된 threshold
     )
 ```
 
@@ -1115,7 +1070,7 @@ from sklearn.metrics import roc_auc_score
 
 | 방식 | 학습 | 결합 | 예시 |
 |------|------|------|------|
-| 앙상블 | 독립 | 예측 후 평균 | 0.6*XGB + 0.4*LSTM |
+| 앙상블 | 독립 | 예측 후 평균 | 0.9*XGB + 0.1*LSTM (실험 결과) |
 | 융합 | 순차 | 한 모델 출력 → 다른 입력 | XGB 확률 → LSTM 피처 |
 
 **2. 2024 논문 기반 융합 방법**
@@ -1264,9 +1219,27 @@ Q: "3가지 융합 방법 중 어떤 것을 선택했나요?"
 
 | Model | AUC | Time(s) | SHAP |
 |-------|-----|---------|------|
-| XGBoost | 0.92 | 45 | ✅ 최상 |
+| XGBoost | 0.9114 | 45 | ✅ 최상 |
 | LightGBM | 0.91 | 32 | ✅ 좋음 |
 | CatBoost | 0.91 | 98 | ⚠️ 제한 |
+
+### 실제 달성 지표 (검증 완료)
+
+| 지표 | 값 | 현업 기준 |
+|------|-----|----------|
+| AUC-ROC | 0.9114 | ≥0.90 ✅ |
+| Recall | 90.55% | 80-95% ✅ |
+| Precision | 9.78% | 5-30% ✅ |
+| AUPRC | 0.5313 | ≥0.50 ✅ |
+
+### 다단계 위험도 (4단계)
+
+```
+approve: 0.00 ~ 0.18 (승인) - 67%
+verify:  0.18 ~ 0.40 (추가인증) - 21%
+hold:    0.40 ~ 0.65 (보류) - 7%
+block:   0.65 이상   (차단) - 5%
+```
 
 ### 2. LSTM 단계별 개선 (1-4)
 
@@ -1276,29 +1249,54 @@ Q: "3가지 융합 방법 중 어떤 것을 선택했나요?"
 | + Optuna 튜닝 | 하이퍼파라미터 최적화 | 0.84 |
 | + 피처 추가 | XGBoost importance 기반 | 0.86 |
 
-### 3. 앙상블 성능 (1-5)
+### 3. 앙상블 실험 결과 (1-5)
 
-| Model | AUC | Recall@0.35 |
-|-------|-----|-------------|
-| XGBoost | 0.92 | 0.83 |
-| LSTM 튜닝 후 | 0.86 | 0.78 |
-| **Ensemble** | **0.89** | **0.84** |
+| Model | AUC | 결론 |
+|-------|-----|------|
+| XGBoost | 0.9114 | **채택** |
+| LSTM | 0.7054 | 성능 낮음 |
+| Ensemble (0.9:0.1) | 0.9054 | +0.12% (효과 미미) |
 
-⚠️ 목표 AUC 0.90 미달 시 → 1-9 융합으로 해결 (선택)
+✅ XGBoost 단독 AUC 0.91 → 목표 달성, 앙상블 불필요
 
-### 4. 융합 방법 비교 (1-9, 선택) ⭐
+### 4. 앙상블 실험 결론
 
-| 방법 | AUC | 복잡도 |
-|------|-----|--------|
-| 단순 앙상블 | 0.89 | 낮음 |
-| B: XGBoost→LSTM | 0.92+ | 낮음 ⭐ |
-| C: CNN-LSTM | 0.93+ | 중간 |
-| D: LSTM AE + XGB | 0.91+ | 높음 |
+| 방법 | AUC | 결론 |
+|------|-----|------|
+| XGBoost 단독 | 0.9042 | **채택** |
+| LSTM 단독 | 0.7054 | 성능 낮음 |
+| 앙상블 (0.9:0.1) | 0.9054 | +0.12% (효과 미미) |
 
-**이 표들이 면접에서 "왜 이걸 선택했나요?"에 대한 근거!**
+**이 표가 면접에서 "왜 XGBoost 단독?"에 대한 근거!**
 
 **핵심 스토리:**
-> "단순 앙상블로는 목표 성능에 미달 → 2024년 논문 조사 → 융합 방식 발견 → 적용해서 해결"
+> "LSTM 앙상블을 시도했지만 +0.12% 향상에 그침 → 복잡도 대비 효과 분석 → XGBoost 단독 채택 → 딥러닝이 항상 좋은 건 아니다"
+
+---
+
+---
+
+## Lessons Learned: API와 학습 코드 일관성
+
+### 발생한 문제
+
+API 코드와 학습 코드가 분리되어 작성되면서 다음 문제 발생:
+
+```
+학습 코드 (노트북): LabelEncoder → ProductCD "W" = 4
+API 코드 (predictor.py): CATEGORY_MAPPINGS → ProductCD "w" = 0
+→ 완전히 다른 값! → Recall 0%
+```
+
+### 해결 방법
+
+1. **전처리된 피처 그대로 사용**: `/samples` API에서 447개 피처 전체 반환
+2. **새 엔드포인트**: `/predict/direct/batch` - 인코딩 변환 없이 바로 예측
+3. **Recall 검증 노트북 추가**: `1-3-1_recall_check.ipynb`
+
+### 면접 어필 포인트
+
+> "학습 코드와 API 코드 불일치로 Recall 0% 이슈 발생. 원인 분석 후 전처리된 피처를 그대로 전달하는 방식으로 해결. 이 경험으로 학습-서빙 일관성의 중요성을 깊이 이해하게 됨."
 
 ---
 
