@@ -20,7 +20,7 @@
 
 ## 📍 현재 진행 상황
 
-**마지막 업데이트**: Phase 1 확장 (1-9~12 추가)
+**마지막 업데이트**: 1-9 트리 스태킹 완료, 1-S10 Transformer 학습 완료
 
 ### Phase 0 (완료)
 | 섹션 | 상태 |
@@ -42,13 +42,14 @@
 | 1-5 | Ensemble | ✅ |
 | 1-6 | SHAP | ✅ |
 | 1-7 | FastAPI + Docker | ✅ |
-| 1-8 | React Admin | 🎯 **다음** |
-| 1-9 | 트리 스태킹 ⭐⭐ | ⏳ |
-| 1-10 | Transformer (선택) | ⏳ |
+| 1-8 | React Admin | ✅ |
+| 1-9 | 트리 스태킹 ⭐⭐ | ✅ |
+| 1-S10 | Transformer 학습 | ✅ |
+| 1-10 | Transformer (선택) | 🎯 **다음** |
 | 1-11 | 하이브리드 (선택) | ⏳ |
 | 1-12 | PaySim (선택) | ⏳ |
 
-**다음 작업**: 1-8 React Admin UI → 1-9 트리 스태킹
+**다음 작업**: 1-10 Transformer 구현 (선택) 또는 Phase 2 진행
 
 ---
 
@@ -166,7 +167,7 @@ pip install fastapi uvicorn
 5. **SHAP 설명**: TreeExplainer로 Top 5 피처 설명
 6. **학습-서빙 일관성**: API 설계 결함 발견 및 해결 경험
 7. **앙상블 실험**: LSTM 추가 시 +0.12% → 복잡도 대비 효과 없어 XGBoost 단독 채택
-8. **트리 스태킹**: XGBoost + LightGBM + CatBoost로 F1 0.99 달성 (2025 벤치마크 기반)
+8. **트리 스태킹**: XGBoost + LightGBM + CatBoost → AUC 0.92, Recall 71% @5%FPR + 확률 분포 양극화
 9. **LSTM 실패 분석**: IEEE-CIS 데이터 특성 (PCA 정적 피처) → PaySim으로 재검증
 
 ## 데이터
