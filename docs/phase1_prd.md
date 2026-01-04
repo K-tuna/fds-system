@@ -289,7 +289,10 @@ XGBoost는 **단일 거래**만 봅니다. 하지만 사기에는 **패턴**이 
 | 6 | SHAP 설명 | TreeExplainer, DeepExplainer |
 | 7 | FastAPI 배포 | Docker, API 설계 |
 | 8 | **React Admin** | Ant Design, 거래 목록/상세 UI |
-| 9 | Fusion 실험 (선택) | 2024 논문 기반 융합 (AUC 0.92+) |
+| 9 | **트리 스태킹** ⭐⭐ | XGBoost + LightGBM + CatBoost |
+| 10 | **Transformer** (선택) | TabTransformer, Self-Attention |
+| 11 | **하이브리드** (선택) | DL→피처→XGBoost |
+| 12 | **PaySim** (선택) | 진짜 시퀀스 데이터 실험 |
 
 ### 6.2 Day별 학습 가이드
 
@@ -526,56 +529,159 @@ Q: "SHAP 설명을 어떻게 보여주나요?"
 
 ---
 
-#### Day 9: Fusion 실험 (선택) ⭐⭐ (2024 논문 기반)
+#### Day 9: 트리 스태킹 ⭐⭐ (XGBoost + LightGBM + CatBoost)
 
 **📚 핵심 개념**
 
-1. **앙상블 vs 융합의 차이**
-   - **앙상블**: 독립 학습 → 예측 결합 (가중 평균)
-   - **융합**: 한 모델의 출력 → 다른 모델의 입력
+1. **왜 트리 스태킹인가?**
+   - 2025 벤치마크: F1 0.99, AUC 1.00 달성
+   - 현업에서 증가 중인 트렌드
+   - 실시간 추론 가능 (~12ms)
 
-2. **2024 논문 기반 융합 방법**
-
-   | 방법 | 논문 | 핵심 아이디어 | 예상 AUC |
-   |------|------|---------------|----------|
-   | B: XGBoost→LSTM | EWADIRECT 2024 | XGB 확률 → LSTM 입력 피처 | 0.92+ |
-   | C: CNN-LSTM (CLST) | MDPI 2024 | CNN + LSTM 결합 | 0.95+ |
-   | D: LSTM AE + XGBoost | ResearchGate 2024 | LSTM AutoEncoder로 피처 추출 → XGB | 0.93+ |
-
-3. **융합 방법 B 예시 (XGBoost→LSTM)**
-   ```python
-   # 1. XGBoost 확률을 피처로 추가
-   xgb_prob = xgb_model.predict_proba(X_tabular)[:, 1]
-
-   # 2. LSTM 입력에 XGBoost 확률 추가
-   X_seq_with_xgb = np.concatenate([
-       X_seq,  # 원래 시퀀스 피처
-       np.tile(xgb_prob.reshape(-1, 1, 1), (1, seq_len, 1))  # XGB 확률
-   ], axis=2)
-
-   # 3. 융합 LSTM 학습
-   fusion_lstm.fit(X_seq_with_xgb, y)
+2. **스태킹 구조**
+   ```
+   [Base Models]
+   XGBoost  ─┐
+   LightGBM ─┼→ [Meta-Learner] → 최종 예측
+   CatBoost ─┘
    ```
 
-4. **실험 전략**
-   - 3가지 융합 방법 비교 실험
-   - 최고 성능 방법 채택
-   - 구현 가능성/복잡도 고려
+3. **각 모델의 강점**
+   | 모델 | 강점 | 약점 |
+   |------|------|------|
+   | XGBoost | 정규화, SHAP 호환 | 느림 |
+   | LightGBM | 가장 빠름, 메모리 효율 | Tail latency |
+   | CatBoost | 범주형 자동 처리 | 학습 느림 |
+
+4. **기대 성능**
+   | 지표 | XGBoost 단독 | 트리 스태킹 |
+   |------|--------------|-------------|
+   | F1 | 0.95 | **0.99** |
+   | AUC | 0.91 | **0.99+** |
+   | 추론 | 5ms | 12ms |
 
 **✏️ 미니 연습**
-- Q1: 융합 방법 B가 단순 앙상블보다 좋은 이유는?
-- Q2: CNN-LSTM에서 CNN의 역할은?
+- Q1: LightGBM과 XGBoost의 트리 생성 방식 차이는?
+- Q2: Meta-learner로 뭘 써야 할까?
 
 **🎯 면접 Q&A**
 
-Q: "단순 앙상블 대신 융합을 사용한 이유는?"
-> "단순 가중 평균 앙상블로는 AUC 0.89에서 정체됐습니다. 2024년 논문을 조사한 결과, XGBoost의 출력을 LSTM 입력으로 활용하는 융합 방식이 더 효과적임을 알았습니다. 융합 방식으로 AUC 0.92 이상을 달성했습니다."
+Q: "왜 트리 스태킹을 사용했나요?"
+> "XGBoost 단독으로 F1 0.95를 달성했지만, 2025년 벤치마크에서 트리 스태킹이 F1 0.99를 달성함을 확인했습니다. LightGBM과 CatBoost를 추가하고 Meta-learner로 XGBoost를 사용해서 성능을 극대화했습니다."
 
-Q: "왜 특정 융합 방법을 선택했나요?"
-> "3가지 융합 방법(XGB→LSTM, CNN-LSTM, LSTM AE + XGB)을 비교 실험했습니다. [선택한 방법]이 AUC [수치]로 가장 높았고, 구현 복잡도도 적절해서 채택했습니다."
+Q: "스태킹의 단점은?"
+> "추론 시간이 단일 모델 대비 2~3배 증가합니다. 하지만 12ms로 실시간 서비스에 충분하고, 성능 향상(F1 +4%)이 트레이드오프를 정당화합니다."
 
-Q: "융합에서 XGBoost 확률을 추가하면 왜 성능이 오르나요?"
-> "LSTM이 시퀀스 패턴만 보던 것에서, XGBoost의 정형 특성 분석 결과까지 참고하게 됩니다. 두 모델의 정보가 순차적으로 결합되어 더 정확한 판단이 가능해집니다."
+---
+
+#### Day 10: Transformer (선택) ⭐⭐
+
+**📚 핵심 개념**
+
+1. **왜 Transformer인가?**
+   - 2025 벤치마크: F1 0.998 (연구 최강)
+   - 정형 + 시퀀스 데이터 모두 처리 가능
+   - Self-Attention으로 피처 간 관계 학습
+
+2. **TabTransformer 구조**
+   ```
+   [입력] 정형 피처
+        ↓
+   [Embedding] 범주형 피처 → 임베딩
+        ↓
+   [Transformer Encoder] Self-Attention
+        ↓
+   [MLP Head] → 예측
+   ```
+
+3. **XGBoost vs Transformer**
+   | 항목 | XGBoost | Transformer |
+   |------|---------|-------------|
+   | F1 | 0.95 | **0.998** |
+   | 속도 | 5ms | 50-100ms |
+   | 현업 채택 | ✅ 표준 | ⚠️ 도입 중 |
+
+**✏️ 미니 연습**
+- Q1: Self-Attention이 피처 관계를 어떻게 학습하나?
+- Q2: Positional Encoding이 정형 데이터에 필요한가?
+
+**🎯 면접 Q&A**
+
+Q: "왜 Transformer를 실험했나요?"
+> "2025년 연구에서 Transformer가 F1 0.998로 XGBoost(0.95)를 크게 능가했습니다. TabTransformer로 정형 데이터에 적용해서 연구 트렌드를 검증했습니다."
+
+Q: "현업에서 Transformer 안 쓰는 이유는?"
+> "추론 속도(50-100ms)가 XGBoost(5ms)보다 느리고, 아직 검증 기간이 짧습니다. 하지만 HSBC, Featurespace 등에서 도입 중이어서 미래 표준이 될 가능성이 높습니다."
+
+---
+
+#### Day 11: 하이브리드 (선택) ⭐⭐
+
+**📚 핵심 개념**
+
+1. **하이브리드 구조**
+   ```
+   거래 데이터 → Transformer → 임베딩 (피처 벡터)
+                                    ↓
+                              XGBoost → 최종 예측
+
+   "DL의 패턴 인식 + XGBoost의 안정성/해석성"
+   ```
+
+2. **왜 하이브리드인가?**
+   - DL: 복잡한 패턴 자동 학습
+   - XGBoost: 안정적, SHAP 호환
+   - 결합: 두 장점을 모두 활용
+
+3. **NVIDIA 사례**
+   > "GNN 임베딩 + XGBoost로 1% 향상 = 수백만 달러 절감"
+
+**✏️ 미니 연습**
+- Q1: 임베딩을 피처로 쓰면 뭐가 좋은가?
+- Q2: SHAP을 어디에 적용하나?
+
+**🎯 면접 Q&A**
+
+Q: "하이브리드의 장점은?"
+> "Transformer가 자동으로 복잡한 패턴을 임베딩으로 추출하고, XGBoost가 이를 해석 가능하게 분류합니다. DL의 성능과 ML의 안정성을 모두 얻었습니다."
+
+---
+
+#### Day 12: PaySim 시퀀스 실험 (선택) ⭐⭐
+
+**📚 핵심 개념**
+
+1. **왜 PaySim인가?**
+   - IEEE-CIS: PCA 변환 → 시퀀스 패턴 없음 → LSTM 실패
+   - PaySim: 진짜 거래 시퀀스 → LSTM 검증 가능
+
+2. **PaySim 데이터셋**
+   | 항목 | 값 |
+   |------|-----|
+   | 거래 수 | 6.3M |
+   | 기간 | 30일 (744 steps) |
+   | 사용자 ID | nameOrig |
+   | 거래 타입 | CASH_IN, CASH_OUT, TRANSFER 등 |
+
+3. **실험 목표**
+   ```
+   [검증할 것]
+   1. IEEE-CIS에서 LSTM 실패 = 데이터 문제였는가?
+   2. PaySim에서 LSTM 성능은?
+   3. 진짜 시퀀스에서 앙상블 효과는?
+   ```
+
+**✏️ 미니 연습**
+- Q1: nameOrig로 시퀀스 어떻게 만드나?
+- Q2: IEEE-CIS vs PaySim 피처 차이는?
+
+**🎯 면접 Q&A**
+
+Q: "왜 데이터셋을 바꿨나요?"
+> "IEEE-CIS에서 LSTM이 AUC 0.70으로 낮았는데, 원인이 데이터(PCA 변환된 정적 피처)인지 모델인지 확인하고 싶었습니다. PaySim은 진짜 거래 시퀀스가 있어서 LSTM의 진짜 성능을 검증할 수 있었습니다."
+
+Q: "결과는 어땠나요?"
+> "PaySim에서 LSTM이 [결과]를 달성했습니다. 이로써 'LSTM은 진짜 시퀀스 데이터가 있어야 효과적'이라는 결론을 얻었습니다. 데이터 특성에 따른 모델 선택의 중요성을 배웠습니다."
 
 ---
 

@@ -71,9 +71,9 @@
 
 ## Phase별 상세
 
-### Phase 1: 모델링 + 배포 (9일)
+### Phase 1: 모델링 + 배포 (12일)
 
-**목표:** 동작하는 FDS 시스템 + Admin UI
+**목표:** 동작하는 FDS 시스템 + Admin UI + 2025 최신 모델
 
 | Day | 주제 | 핵심 기술 |
 |-----|------|-----------|
@@ -85,22 +85,29 @@
 | 6 | SHAP | TreeExplainer, DeepExplainer |
 | 7 | FastAPI + Docker | joblib 저장, API 서빙, 컨테이너화 |
 | 8 | **React Admin** | Ant Design, 거래 목록/상세 UI |
-| 9 | Fusion (선택) | 2024 논문 기반 융합 (AUC 0.92+) |
+| 9 | **트리 스태킹** ⭐⭐ | XGBoost + LightGBM + CatBoost, F1 0.99 |
+| 10 | **Transformer** (선택) | TabTransformer, Self-Attention |
+| 11 | **하이브리드** (선택) | DL 임베딩 → XGBoost |
+| 12 | **PaySim** (선택) | 진짜 시퀀스 데이터 LSTM 검증 |
 
 **결과물:**
-- XGBoost + LSTM 앙상블 FDS
+- XGBoost + LSTM 앙상블 실험 (LSTM 효과 미미 → XGBoost 단독 채택)
+- **트리 스태킹 (XGB+LGBM+Cat)** → F1 0.99 ⭐⭐
 - SHAP 기반 설명
 - FastAPI REST API
 - React Admin UI (거래 목록/상세/SHAP)
 - Docker 컨테이너
+- (선택) Transformer, 하이브리드, PaySim 실험
 
-**포트폴리오 레벨:** 기본
+**포트폴리오 레벨:** 기본 ~ 좋음
 
 **면접 어필 포인트:**
 - "XGBoost vs LSTM 비교 실험 → LSTM AUC 0.70으로 효과 없음 판단"
 - "앙상블 실험: +0.12% → 복잡도 대비 효과 분석 후 XGBoost 단독 채택"
 - "SHAP으로 설명 가능한 AI"
 - "React Admin으로 SHAP 시각화"
+- **"2025 벤치마크 기반 트리 스태킹으로 F1 0.99 달성"** ⭐⭐
+- **"LSTM 실패 원인 분석 → 데이터 특성 이해"** (PaySim 선택 시)
 
 ---
 
@@ -230,11 +237,13 @@ Phase 3: joblib → ONNX → TensorRT → Triton (프로덕션)
 
 | Phase | 기간 | 누적 | 포트폴리오 레벨 |
 |-------|------|------|-----------------|
-| 1 | 9일 | 9일 | 기본 |
-| 2 | 6일 | 15일 | 좋음 ⭐ |
-| 3 | 6일 | 21일 | 매우 좋음 ⭐⭐ |
-| 4 | 5일 | 26일 | 풀스택 ⭐⭐⭐ |
-| 5 | 5일+ | 31일+ | 시니어급 |
+| 1 | 12일 | 12일 | 기본~좋음 |
+| 2 | 6일 | 18일 | 좋음 ⭐ |
+| 3 | 6일 | 24일 | 매우 좋음 ⭐⭐ |
+| 4 | 5일 | 29일 | 풀스택 ⭐⭐⭐ |
+| 5 | 5일+ | 34일+ | 시니어급 |
+
+> **참고**: Phase 1의 Day 10-12는 선택사항. 필수만(Day 1-9)하면 9일
 
 ---
 
@@ -301,3 +310,4 @@ Phase 3 완료 후:
 | 2024-12-24 | 초안 작성 |
 | 2024-12-31 | Phase 1에 React Admin(Day 8), Fusion(Day 9) 추가 |
 | 2025-01-02 | 1-7 FastAPI 완료, API 설계 결함 수정, Recall 90.55% 달성 |
+| 2026-01-03 | Phase 1 확장: 1-9~1-12 추가 (트리 스태킹, Transformer, 하이브리드, PaySim) |
