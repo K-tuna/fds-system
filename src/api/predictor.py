@@ -1,4 +1,4 @@
-"""FDS 예측기 모듈"""
+"""FDS 예측기 모듈 - 스태킹 앙상블 (XGBoost + LightGBM + CatBoost)"""
 
 import logging
 from pathlib import Path
@@ -23,8 +23,8 @@ CATEGORY_MAPPINGS = {
 # 문자열 피처 (hash 인코딩)
 STRING_FEATURES = {"P_emaildomain", "R_emaildomain", "DeviceInfo"}
 
-# 다단계 위험도 임계값 (최적 threshold 0.18 기준)
-# 모델이 0.18 이상이면 "사기일 가능성 있음"으로 판단
+# 다단계 위험도 임계값 (계층형 대응)
+# 스태킹 모델 기준으로 조정
 RISK_THRESHOLDS = {
     "approve": 0.18,   # 0.00 ~ 0.18: 승인 (사기 가능성 낮음)
     "verify": 0.40,    # 0.18 ~ 0.40: 추가인증 (의심)
@@ -48,15 +48,21 @@ def get_risk_level(prob: float) -> str:
 class FDSPredictor:
     """FDS 예측기 클래스
 
-    XGBoost 모델을 로딩하고 예측 + SHAP 설명을 생성합니다.
+    스태킹 앙상블 (XGBoost + LightGBM + CatBoost) + SHAP 설명을 생성합니다.
     """
 
     def __init__(self):
+        # 스태킹 모델들
         self.xgb_model = None
+        self.lgbm_model = None
+        self.cat_model = None
+        self.meta_model = None
+
         self.threshold: float = 0.5
         self.feature_names: List[str] = []
         self.explainer = None
         self._is_loaded = False
+        self._use_stacking = False  # 스태킹 사용 여부
 
     @property
     def is_loaded(self) -> bool:
@@ -66,37 +72,97 @@ class FDSPredictor:
     def load_models(self, models_dir: str = "models") -> None:
         """모델 로딩
 
+        스태킹 모델이 있으면 스태킹 사용, 없으면 기존 XGBoost 단독 사용
+
         Args:
             models_dir: 모델 파일 디렉토리 경로
         """
         models_path = Path(models_dir)
 
-        # XGBoost 모델 로딩
+        # 스태킹 모델 파일들
+        stacking_files = {
+            "xgb": models_path / "stacking_xgb_tuned.joblib",
+            "lgbm": models_path / "stacking_lgbm_tuned.joblib",
+            "cat": models_path / "stacking_cat_tuned.joblib",
+            "meta": models_path / "stacking_meta_model.joblib",
+            "features": models_path / "stacking_feature_names.joblib",
+            "config": models_path / "stacking_config.joblib",
+        }
+
+        # 스태킹 모델 존재 여부 확인
+        stacking_available = all(f.exists() for f in stacking_files.values())
+
+        if stacking_available:
+            self._load_stacking_models(models_path, stacking_files)
+        else:
+            self._load_single_model(models_path)
+
+        # SHAP Explainer 로딩 (XGBoost 기반)
+        self._load_shap_explainer()
+
+        self._is_loaded = True
+        model_type = "스태킹 앙상블" if self._use_stacking else "XGBoost 단독"
+        logger.info(f"모델 로딩 완료! ({model_type})")
+
+    def _load_stacking_models(self, models_path: Path, files: Dict) -> None:
+        """스태킹 모델들 로딩"""
+        logger.info("스태킹 앙상블 모델 로딩 중...")
+
+        # 3개 Base 모델 로딩
+        self.xgb_model = joblib.load(files["xgb"])
+        logger.info(f"  XGBoost 로딩: {files['xgb']}")
+
+        self.lgbm_model = joblib.load(files["lgbm"])
+        logger.info(f"  LightGBM 로딩: {files['lgbm']}")
+
+        self.cat_model = joblib.load(files["cat"])
+        logger.info(f"  CatBoost 로딩: {files['cat']}")
+
+        # 메타 모델 로딩
+        self.meta_model = joblib.load(files["meta"])
+        logger.info(f"  Meta 모델 로딩: {files['meta']}")
+
+        # 피처 이름 로딩
+        self.feature_names = joblib.load(files["features"])
+        logger.info(f"  피처 수: {len(self.feature_names)}")
+
+        # 설정 로딩
+        config = joblib.load(files["config"])
+        self.threshold = config.get("threshold_methods", {}).get(
+            "fpr_constraint", {}
+        ).get("threshold", 0.18)
+        logger.info(f"  Threshold: {self.threshold:.3f}")
+
+        self._use_stacking = True
+
+    def _load_single_model(self, models_path: Path) -> None:
+        """기존 XGBoost 단독 모델 로딩 (fallback)"""
         xgb_path = models_path / "xgb_model.joblib"
         if not xgb_path.exists():
-            raise FileNotFoundError(f"XGBoost 모델 파일이 없습니다: {xgb_path}")
+            raise FileNotFoundError(f"모델 파일이 없습니다: {xgb_path}")
 
-        logger.info(f"XGBoost 모델 로딩: {xgb_path}")
+        logger.info(f"XGBoost 단독 모델 로딩: {xgb_path}")
         xgb_info = joblib.load(xgb_path)
 
         self.xgb_model = xgb_info["model"]
         self.threshold = xgb_info.get("optimal_threshold", 0.5)
 
-        # 피처 이름 로딩 (모델에서 또는 별도 저장)
+        # 피처 이름 로딩
         if "feature_names" in xgb_info:
             self.feature_names = xgb_info["feature_names"]
         else:
-            # XGBoost Booster에서 피처 이름 추출
             self.feature_names = self.xgb_model.get_booster().feature_names
             if self.feature_names is None:
-                # 피처 이름이 없으면 기본값 사용
                 n_features = self.xgb_model.n_features_in_
                 self.feature_names = [f"f{i}" for i in range(n_features)]
 
         logger.info(f"피처 수: {len(self.feature_names)}")
         logger.info(f"최적 Threshold: {self.threshold:.2f}")
 
-        # SHAP Explainer 로딩
+        self._use_stacking = False
+
+    def _load_shap_explainer(self) -> None:
+        """SHAP Explainer 로딩 (XGBoost 기반)"""
         try:
             from src.explainer import ShapExplainer
             self.explainer = ShapExplainer(self.xgb_model, self.feature_names)
@@ -105,8 +171,24 @@ class FDSPredictor:
             logger.warning(f"SHAP Explainer 로딩 실패: {e}")
             self.explainer = None
 
-        self._is_loaded = True
-        logger.info("모델 로딩 완료!")
+    def _predict_proba(self, features: pd.DataFrame) -> float:
+        """예측 확률 반환 (스태킹 또는 단독)"""
+        if self._use_stacking:
+            # 3개 모델의 예측 확률
+            prob_xgb = self.xgb_model.predict_proba(features)[:, 1]
+            prob_lgbm = self.lgbm_model.predict_proba(features)[:, 1]
+            prob_cat = self.cat_model.predict_proba(features)[:, 1]
+
+            # 메타 피처 생성
+            meta_features = np.column_stack([prob_xgb, prob_lgbm, prob_cat])
+
+            # 메타 모델로 최종 예측
+            prob = self.meta_model.predict_proba(meta_features)[0, 1]
+        else:
+            # XGBoost 단독
+            prob = self.xgb_model.predict_proba(features)[0, 1]
+
+        return float(prob)
 
     def _extract_features(self, request: PredictRequest) -> pd.DataFrame:
         """요청에서 피처 추출
@@ -155,12 +237,12 @@ class FDSPredictor:
         # 1. 피처 추출
         features = self._extract_features(request)
 
-        # 2. 예측
-        prob = float(self.xgb_model.predict_proba(features)[0, 1])
+        # 2. 예측 (스태킹 또는 단독)
+        prob = self._predict_proba(features)
         risk_level = get_risk_level(prob)
         is_fraud = risk_level == "block"  # 차단 레벨만 사기로 판정
 
-        # 3. SHAP 설명 생성
+        # 3. SHAP 설명 생성 (XGBoost 기반)
         top_factors = []
         explanation_text = ""
 
@@ -229,11 +311,7 @@ class FDSPredictor:
             if k not in ["transaction_id", "_actual_label"]
         }
 
-        # DataFrame 생성 (피처 순서 맞추기)
-        df = pd.DataFrame([feature_values])
-
         # 피처 순서 정렬 (모델 학습 시 순서와 일치)
-        # 누락된 피처는 0으로, 추가 피처는 무시
         aligned_features = {}
         for fname in self.feature_names:
             if fname in feature_values:
@@ -244,12 +322,12 @@ class FDSPredictor:
         df = pd.DataFrame([aligned_features])
         df = df[self.feature_names].astype(float)
 
-        # 예측
-        prob = float(self.xgb_model.predict_proba(df)[0, 1])
+        # 예측 (스태킹 또는 단독)
+        prob = self._predict_proba(df)
         risk_level = get_risk_level(prob)
         is_fraud = risk_level == "block"
 
-        # SHAP 설명 생성
+        # SHAP 설명 생성 (XGBoost 기반)
         top_factors = []
         explanation_text = ""
 
