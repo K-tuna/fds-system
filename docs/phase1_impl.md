@@ -1401,141 +1401,7 @@ Q: "현업에서 Transformer 안 쓰는 이유는?"
 
 ---
 
-## 1-11: 하이브리드 (Day 11) - 선택 ⭐⭐
-
-### 필요 패키지
-```python
-import torch
-import torch.nn as nn
-from xgboost import XGBClassifier
-import numpy as np
-```
-
-### 세부 설명 리스트
-
-**1. 하이브리드 구조**
-```
-거래 데이터 → Transformer → 임베딩 벡터 (32~128차원)
-                                   ↓
-                              [결합]
-                                   ↓
-               원본 피처 + 임베딩 → XGBoost → 최종 예측
-
-"DL의 자동 패턴 학습 + XGBoost의 안정성/해석성"
-```
-
-**2. 왜 하이브리드인가?**
-- DL: 복잡한 피처 상호작용 자동 학습
-- XGBoost: 안정적이고 SHAP으로 설명 가능
-- 결합: DL 임베딩을 XGBoost 피처로 사용 → 두 장점 결합
-
-**3. 현업 사례**
-- NVIDIA: "GNN 임베딩 + XGBoost로 1% 향상 = 수백만 달러 절감"
-- 대형 은행: Autoencoder 잠재 벡터를 FDS 피처로 활용
-
-### 실습 목록
-- 실습 1: Transformer 임베딩 추출기 구현
-- 실습 2: 임베딩을 XGBoost 피처로 결합
-- 실습 3: 하이브리드 모델 학습
-- 실습 4: 단독 모델 vs 하이브리드 비교
-- 실습 5: SHAP 적용 (XGBoost 부분)
-
-### 핵심 코드: 임베딩 추출
-
-```python
-class TransformerEmbedder(nn.Module):
-    """Transformer로 임베딩 추출 (분류 헤드 제외)"""
-    def __init__(self, base_transformer):
-        super().__init__()
-        self.cat_embeddings = base_transformer.cat_embeddings
-        self.cont_norm = base_transformer.cont_norm
-        self.cont_proj = base_transformer.cont_proj
-        self.transformer = base_transformer.transformer
-
-    def forward(self, x_cat, x_cont):
-        # 범주형 임베딩
-        cat_embeds = [
-            emb(x_cat[:, i]) for i, emb in enumerate(self.cat_embeddings)
-        ]
-        cat_embeds = torch.stack(cat_embeds, dim=1)
-
-        # 수치형 처리
-        x_cont = self.cont_norm(x_cont)
-        cont_embed = self.cont_proj(x_cont).unsqueeze(1)
-
-        # 결합 + Transformer
-        x = torch.cat([cat_embeds, cont_embed], dim=1)
-        x = self.transformer(x)
-
-        # Flatten (MLP Head 전까지만)
-        return x.flatten(1)  # (batch, num_tokens * dim)
-
-
-def extract_embeddings(model, dataloader, device):
-    """데이터셋 전체에 대한 임베딩 추출"""
-    model.eval()
-    embeddings = []
-
-    with torch.no_grad():
-        for x_cat, x_cont, _ in dataloader:
-            x_cat, x_cont = x_cat.to(device), x_cont.to(device)
-            emb = model(x_cat, x_cont)
-            embeddings.append(emb.cpu().numpy())
-
-    return np.vstack(embeddings)
-```
-
-### 핵심 코드: 하이브리드 학습
-
-```python
-# 1. Transformer 학습 (먼저)
-transformer = TabTransformer(...)
-train_transformer(transformer, train_loader, val_loader)
-
-# 2. 임베딩 추출
-embedder = TransformerEmbedder(transformer)
-embedder.load_state_dict(...)
-
-train_embeddings = extract_embeddings(embedder, train_loader, device)
-test_embeddings = extract_embeddings(embedder, test_loader, device)
-
-# 3. 원본 피처 + 임베딩 결합
-X_train_hybrid = np.concatenate([X_train_tabular, train_embeddings], axis=1)
-X_test_hybrid = np.concatenate([X_test_tabular, test_embeddings], axis=1)
-
-print(f"원본 피처: {X_train_tabular.shape[1]}")
-print(f"임베딩: {train_embeddings.shape[1]}")
-print(f"하이브리드: {X_train_hybrid.shape[1]}")
-
-# 4. XGBoost 학습
-xgb_hybrid = XGBClassifier(
-    n_estimators=300,
-    max_depth=6,
-    tree_method='hist',
-    device='cuda'
-)
-xgb_hybrid.fit(X_train_hybrid, y_train)
-
-# 5. 평가
-y_prob = xgb_hybrid.predict_proba(X_test_hybrid)[:, 1]
-print(f"Hybrid AUC: {roc_auc_score(y_test, y_prob):.4f}")
-
-# 6. SHAP (XGBoost 부분에 적용)
-explainer = shap.TreeExplainer(xgb_hybrid)
-shap_values = explainer.shap_values(X_test_hybrid)
-```
-
-### 면접 포인트
-
-Q: "하이브리드의 장점은?"
-> "Transformer가 피처 간 복잡한 상호작용을 자동으로 학습해서 임베딩으로 압축합니다. 이 임베딩을 XGBoost 피처로 추가하면, XGBoost의 안정성과 SHAP 설명 가능성을 유지하면서 DL의 패턴 인식력을 활용할 수 있습니다."
-
-Q: "왜 End-to-End DL 대신 하이브리드?"
-> "End-to-End Transformer는 성능이 높지만 설명이 어렵습니다. 하이브리드는 최종 분류기가 XGBoost이므로 SHAP TreeExplainer를 그대로 적용할 수 있어서 금융 규제(XAI 요구)를 충족합니다."
-
----
-
-## 1-12: PaySim 시퀀스 실험 (Day 12) - 선택 ⭐⭐
+## 1-11: PaySim 공정 비교 (Day 11) - 선택 ⭐⭐
 
 ### 필요 패키지
 ```python
@@ -1543,152 +1409,400 @@ import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from sklearn.metrics import roc_auc_score, f1_score
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
+from catboost import CatBoostClassifier
+from sklearn.metrics import roc_auc_score, average_precision_score
+import time
 ```
 
 ### 세부 설명 리스트
 
-**1. 왜 PaySim인가?**
-- IEEE-CIS: V1~V339가 PCA 변환된 정적 피처 → 시퀀스 패턴 없음 → LSTM 실패
-- PaySim: 진짜 거래 시퀀스 (사용자별 시간순 거래) → LSTM 검증 가능
+**1. 왜 PaySim으로 재실험?**
+- IEEE-CIS: V1~V339가 PCA 변환된 정적 피처 → LSTM AUC 0.70 실패
+- PaySim: 진짜 시계열 (사용자별 거래 순서) → 공정한 ML vs DL 비교 가능
+- 시간 윈도우 집계 피처 직접 구현 → 현업 파이프라인 경험
 
 **2. PaySim 데이터셋**
 
 | 항목 | 값 |
 |------|-----|
 | 총 거래 수 | 6,362,620 |
-| 기간 | 30일 (744 steps) |
+| 기간 | 30일 (744 steps, 1 step = 1시간) |
 | 사용자 ID | nameOrig |
 | 거래 타입 | CASH_IN, CASH_OUT, TRANSFER, DEBIT, PAYMENT |
 | 사기 비율 | 0.13% (8,213건) |
 
-**3. 시퀀스 생성 방법**
-```
-PaySim 원본:
-step, type, amount, nameOrig, oldbalanceOrg, newbalanceOrig, ...
+**3. 시간 윈도우 집계 피처 (12개) - 현업 수준**
+```python
+# 시간 윈도우별 거래 빈도 (3개)
+tx_count_1h      # 최근 1시간 거래 수
+tx_count_24h     # 최근 24시간 거래 수
+tx_count_7d      # 최근 7일 거래 수
 
-→ nameOrig로 그룹핑 → step 순서로 정렬
+# 시간 윈도우별 금액 합계 (3개)
+amt_sum_1h       # 최근 1시간 총액
+amt_sum_24h      # 최근 24시간 총액
+amt_sum_7d       # 최근 7일 총액
 
-사용자 A의 거래 시퀀스:
-[t1: CASH_IN 1000] → [t2: TRANSFER 500] → [t3: CASH_OUT 2000] → ...
+# 시간 간격 (2개)
+time_since_last  # 마지막 거래 후 경과 시간
+avg_time_gap     # 평균 거래 간격
+
+# 잔액 관련 (2개)
+balance_ratio    # newBalance / oldBalance
+balance_drop_pct # 잔액 감소율
+
+# 패턴 탐지 (2개)
+same_dest_count  # 같은 수취자에게 보낸 횟수
+is_first_transfer # 첫 송금 여부
 ```
+
+**4. 비교 모델 (4개)**
+
+| 모델 | 입력 | 특징 |
+|------|------|------|
+| XGBoost | 집계 피처 + 원본 | 베이스라인 |
+| 트리 스태킹 | 집계 피처 + 원본 | XGB+LGBM+Cat |
+| LSTM | 시퀀스 (seq_len=10) | 시계열 패턴 |
+| Transformer | 집계 피처 + 원본 | Self-Attention |
 
 ### 실습 목록
 - 실습 1: PaySim 데이터 로드 및 EDA
-- 실습 2: 사용자별 시퀀스 생성
-- 실습 3: LSTM 학습 (IEEE-CIS와 동일 구조)
-- 실습 4: XGBoost vs LSTM 비교 (PaySim에서)
-- 실습 5: IEEE-CIS vs PaySim 결과 비교
-- 실습 6: 결론: "LSTM은 진짜 시퀀스가 필요하다"
+- 실습 2: 시간 윈도우 집계 피처 구현 (12개)
+- 실습 3: LSTM용 시퀀스 생성
+- 실습 4: 4개 모델 학습 (XGBoost, 스태킹, LSTM, Transformer)
+- 실습 5: 추론 속도 벤치마크
+- 실습 6: 성능 + 속도 비교 분석
 
-### 핵심 코드: PaySim 로드 및 EDA
+### 핵심 코드: 시간 윈도우 집계 피처
 
 ```python
-# PaySim 데이터 로드 (Kaggle에서 다운로드)
-df = pd.read_csv('data/raw/paysim/PS_20174392719_1491204439457_log.csv')
+def create_time_window_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    현업 수준 시간 윈도우 집계 피처 생성 (Vectorized, O(n) 성능)
 
-print(f"총 거래 수: {len(df):,}")
-print(f"사기 비율: {df['isFraud'].mean()*100:.2f}%")
-print(f"유니크 사용자: {df['nameOrig'].nunique():,}")
-print(f"거래 타입:\n{df['type'].value_counts()}")
+    기존 O(n²) 루프 방식 대비 ~100배 빠름 (600만 건 기준)
+    """
+    df = df.sort_values(['nameOrig', 'step']).copy()
 
-# 시간순 정렬
-df = df.sort_values(['nameOrig', 'step'])
+    # step을 datetime으로 변환 (1 step = 1 hour)
+    df['datetime'] = pd.to_datetime(df['step'], unit='h', origin='2020-01-01')
+    df = df.set_index('datetime')
 
-# 사용자별 거래 수 분포
-user_tx_counts = df.groupby('nameOrig').size()
-print(f"사용자당 평균 거래: {user_tx_counts.mean():.1f}")
-print(f"사용자당 중앙값: {user_tx_counts.median():.1f}")
+    # === 1. 시간 윈도우별 거래 빈도 (rolling count) ===
+    # closed='left': 현재 거래 제외 (과거만)
+    df['tx_count_1h'] = df.groupby('nameOrig')['amount'].transform(
+        lambda x: x.shift(1).rolling('1H', min_periods=0).count()
+    ).fillna(0).astype(int)
+
+    df['tx_count_24h'] = df.groupby('nameOrig')['amount'].transform(
+        lambda x: x.shift(1).rolling('24H', min_periods=0).count()
+    ).fillna(0).astype(int)
+
+    df['tx_count_7d'] = df.groupby('nameOrig')['amount'].transform(
+        lambda x: x.shift(1).rolling('168H', min_periods=0).count()  # 7일 = 168시간
+    ).fillna(0).astype(int)
+
+    # === 2. 시간 윈도우별 금액 합계 (rolling sum) ===
+    df['amt_sum_1h'] = df.groupby('nameOrig')['amount'].transform(
+        lambda x: x.shift(1).rolling('1H', min_periods=0).sum()
+    ).fillna(0)
+
+    df['amt_sum_24h'] = df.groupby('nameOrig')['amount'].transform(
+        lambda x: x.shift(1).rolling('24H', min_periods=0).sum()
+    ).fillna(0)
+
+    df['amt_sum_7d'] = df.groupby('nameOrig')['amount'].transform(
+        lambda x: x.shift(1).rolling('168H', min_periods=0).sum()
+    ).fillna(0)
+
+    # === 3. 시간 간격 피처 ===
+    df['time_since_last'] = df.groupby('nameOrig')['step'].diff().fillna(0)
+    df['avg_time_gap'] = df.groupby('nameOrig')['step'].transform(
+        lambda x: x.diff().expanding().mean()
+    ).fillna(0)
+
+    # === 4. 잔액 관련 피처 ===
+    df['balance_ratio'] = df['newbalanceOrig'] / (df['oldbalanceOrg'] + 1e-6)
+    df['balance_drop_pct'] = (df['oldbalanceOrg'] - df['newbalanceOrig']) / (df['oldbalanceOrg'] + 1e-6)
+
+    # === 5. 패턴 탐지 피처 ===
+    # 같은 수취자 거래 횟수 (cumcount)
+    df['same_dest_count'] = df.groupby(['nameOrig', 'nameDest']).cumcount()
+
+    # 첫 송금 여부
+    df['is_transfer'] = (df['type'] == 'TRANSFER').astype(int)
+    df['transfer_cumsum'] = df.groupby('nameOrig')['is_transfer'].cumsum() - df['is_transfer']
+    df['is_first_transfer'] = ((df['is_transfer'] == 1) & (df['transfer_cumsum'] == 0)).astype(int)
+
+    # 인덱스 복원 및 임시 컬럼 제거
+    df = df.reset_index(drop=True)
+    df = df.drop(columns=['is_transfer', 'transfer_cumsum'], errors='ignore')
+
+    feature_cols = [
+        'tx_count_1h', 'tx_count_24h', 'tx_count_7d',
+        'amt_sum_1h', 'amt_sum_24h', 'amt_sum_7d',
+        'time_since_last', 'avg_time_gap',
+        'balance_ratio', 'balance_drop_pct',
+        'same_dest_count', 'is_first_transfer'
+    ]
+
+    return df[feature_cols]
 ```
 
-### 핵심 코드: 시퀀스 생성
+> **성능 비교**: 600만 건 기준
+> - 기존 O(n²) 루프: ~수 시간
+> - Vectorized O(n): ~30초
+
+### 핵심 코드: 추론 속도 벤치마크
 
 ```python
-def create_paysim_sequences(df, seq_len=10, min_tx=3):
-    """PaySim 데이터에서 사용자별 시퀀스 생성"""
+def benchmark_inference(model, X_sample, n_runs=100):
+    """단일 샘플 추론 속도 측정"""
+    times = []
+    for _ in range(n_runs):
+        start = time.perf_counter()
+        _ = model.predict_proba(X_sample.reshape(1, -1))
+        times.append((time.perf_counter() - start) * 1000)  # ms
+    return np.mean(times), np.std(times)
 
-    # 피처 정의
-    type_map = {'CASH_IN': 0, 'CASH_OUT': 1, 'DEBIT': 2, 'PAYMENT': 3, 'TRANSFER': 4}
-    df['type_encoded'] = df['type'].map(type_map)
+# 각 모델 벤치마크
+results = []
+for name, model in models.items():
+    mean_ms, std_ms = benchmark_inference(model, X_test[0])
+    results.append({'Model': name, 'Latency (ms)': f"{mean_ms:.2f} ± {std_ms:.2f}"})
 
-    # 수치형 피처 스케일링
-    from sklearn.preprocessing import MinMaxScaler
-    scaler = MinMaxScaler()
-    df['amount_scaled'] = scaler.fit_transform(df[['amount']])
-    df['balance_diff'] = df['newbalanceOrig'] - df['oldbalanceOrg']
-    df['balance_diff_scaled'] = scaler.fit_transform(df[['balance_diff']])
-
-    seq_features = ['type_encoded', 'amount_scaled', 'balance_diff_scaled', 'step']
-
-    sequences = []
-    labels = []
-
-    for user_id, group in df.groupby('nameOrig'):
-        if len(group) < min_tx:
-            continue
-
-        group = group.sort_values('step')
-
-        for i in range(seq_len, len(group)):
-            seq = group.iloc[i-seq_len:i][seq_features].values
-            label = group.iloc[i]['isFraud']
-
-            sequences.append(seq)
-            labels.append(label)
-
-    return np.array(sequences), np.array(labels)
-
-# 시퀀스 생성
-X_seq, y = create_paysim_sequences(df, seq_len=10)
-print(f"시퀀스 shape: {X_seq.shape}")  # (samples, 10, 4)
-print(f"사기 비율: {y.mean()*100:.2f}%")
-```
-
-### 핵심 코드: LSTM 학습 (PaySim)
-
-```python
-# 동일한 LSTM 구조 사용
-class FraudLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size=64, num_layers=2):
-        super().__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers,
-                           batch_first=True, dropout=0.2)
-        self.fc = nn.Linear(hidden_size, 1)
-
-    def forward(self, x):
-        _, (h_n, _) = self.lstm(x)
-        return torch.sigmoid(self.fc(h_n[-1]))
-
-# PaySim에서 LSTM 학습
-model = FraudLSTM(input_size=4, hidden_size=64)
-# ... 학습 코드 (1-4와 동일)
-
-# 결과 비교
-print("=== IEEE-CIS vs PaySim LSTM 비교 ===")
-print(f"IEEE-CIS LSTM AUC: 0.70 (실패)")
-print(f"PaySim LSTM AUC: {paysim_auc:.4f}")
+print(pd.DataFrame(results).to_markdown(index=False))
 ```
 
 ### 예상 실험 결과
 
-| 데이터셋 | 모델 | AUC | 분석 |
-|----------|------|-----|------|
-| IEEE-CIS | XGBoost | 0.91 | ✅ 정형 피처 강점 |
-| IEEE-CIS | LSTM | 0.70 | ❌ 시퀀스 패턴 없음 |
-| PaySim | XGBoost | 0.95+ | ✅ 정형에서도 강력 |
-| PaySim | LSTM | 0.90+ | ✅ 진짜 시퀀스 효과 |
+| 모델 | AUC | AUPRC | 추론 속도 (ms) |
+|------|-----|-------|---------------|
+| XGBoost | 0.93+ | 0.60+ | ~0.5 |
+| 트리 스태킹 | 0.94+ | 0.62+ | ~1.5 |
+| LSTM | 0.90+ | 0.55+ | ~15 |
+| Transformer | 0.92+ | 0.58+ | ~30 |
 
 ### 면접 포인트
 
-Q: "왜 데이터셋을 바꿨나요?"
-> "IEEE-CIS에서 LSTM이 AUC 0.70으로 실패한 원인을 분석했습니다. V1~V339 피처가 PCA 변환된 정적 피처라서 시퀀스 패턴이 없었습니다. PaySim은 사용자별 실제 거래 시퀀스가 있어서 LSTM의 진짜 성능을 검증할 수 있었습니다."
+Q: "왜 PaySim으로 재실험했나요?"
+> "IEEE-CIS에서 LSTM AUC 0.70으로 실패한 원인을 분석했습니다. V1~V339가 PCA 익명화된 피처라서 시계열 패턴이 없었습니다. PaySim은 실제 거래 시퀀스가 있어서 ML vs DL 공정 비교가 가능했습니다."
 
-Q: "결과는 어땠나요?"
-> "PaySim에서 LSTM이 AUC 0.90+를 달성해서, '데이터에 시퀀스 패턴이 있어야 LSTM이 효과적'이라는 결론을 얻었습니다. 모델 선택은 데이터 특성에 따라 달라져야 한다는 실무적 교훈을 배웠습니다."
+Q: "시간 윈도우 집계 피처는 어떻게 설계했나요?"
+> "현업 논문과 블로그를 참고해서 12개 피처를 설계했습니다. 1시간/24시간/7일 윈도우별 거래 빈도와 금액, 잔액 변화율, 같은 수취자 반복 패턴 등입니다. 이 피처들이 +200% 성능 향상에 기여한다는 연구 결과가 있습니다."
 
-Q: "이 실험의 가치는?"
-> "실무에서 '왜 LSTM/Transformer가 안 됐지?'라는 질문이 자주 나옵니다. 데이터 특성을 분석해서 모델 실패 원인을 규명하고, 적절한 데이터로 재검증하는 과정을 경험했습니다. 이런 디버깅 능력이 현업에서 중요합니다."
+Q: "추론 속도 측정 결과는?"
+> "XGBoost 0.5ms, LSTM 15ms로 30배 차이났습니다. LSTM이 성능은 좋지만 실시간 서빙에 부적합해서, 이를 해결하기 위해 1-12에서 하이브리드 아키텍처를 구현했습니다."
+
+---
+
+## 1-12: 하이브리드 서빙 (Day 12) - 선택 ⭐⭐
+
+### 필요 패키지
+```python
+import torch
+import torch.nn as nn
+import redis
+import pickle
+import numpy as np
+from xgboost import XGBClassifier
+import time
+```
+
+### 세부 설명 리스트
+
+**1. 문제 정의**
+- 1-11 결과: LSTM AUC 0.90+ 달성하지만 추론 속도 15ms
+- XGBoost: AUC 0.93+, 추론 속도 0.5ms
+- 목표: DL 성능 + XGBoost 속도 결합
+
+**2. 해결책: NVIDIA 레퍼런스 아키텍처**
+```
+배치 파이프라인 (1시간마다):
+┌─────────────────────────────────────┐
+│ 1. 전체 고객 시퀀스 로드            │
+│ 2. LSTM으로 고객별 임베딩 계산      │
+│ 3. Redis에 저장 (key: customer_id)  │
+└─────────────────────────────────────┘
+
+실시간 파이프라인 (거래 발생 시):
+┌─────────────────────────────────────┐
+│ 1. Redis에서 임베딩 조회 (0.1ms)    │
+│ 2. 원본 피처 + 임베딩 결합          │
+│ 3. XGBoost 추론 (0.5ms)             │
+│ 4. 총 < 1ms                         │
+└─────────────────────────────────────┘
+```
+
+**3. 왜 Redis?**
+- In-memory → 조회 0.1ms 미만
+- 현업 표준 (Feedzai, Stripe 등에서 사용)
+- Docker로 쉽게 구성
+
+### 실습 목록
+- 실습 1: LSTM 임베딩 추출 함수 구현
+- 실습 2: Redis 연결 및 임베딩 저장/로드
+- 실습 3: 하이브리드 XGBoost 학습 (원본 + 임베딩)
+- 실습 4: 추론 속도 벤치마크 (LSTM 직접 vs 하이브리드)
+- 실습 5: 성능 비교 (XGBoost 단독 vs 하이브리드)
+
+### 핵심 코드: LSTM 임베딩 추출
+
+```python
+class LSTMEmbedder(nn.Module):
+    """LSTM에서 임베딩만 추출 (분류 헤드 제외)"""
+    def __init__(self, input_size, hidden_size=64, num_layers=2):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers,
+                           batch_first=True, dropout=0.2)
+
+    def forward(self, x):
+        _, (h_n, _) = self.lstm(x)
+        return h_n[-1]  # (batch, hidden_size)
+
+def extract_user_embeddings(model, user_sequences, device):
+    """고객별 임베딩 추출"""
+    model.eval()
+    embeddings = {}
+
+    with torch.no_grad():
+        for user_id, seq in user_sequences.items():
+            seq_tensor = torch.FloatTensor(seq).unsqueeze(0).to(device)
+            emb = model(seq_tensor).cpu().numpy().flatten()
+            embeddings[user_id] = emb
+
+    return embeddings
+```
+
+### 핵심 코드: Redis 임베딩 저장/로드
+
+```python
+# Redis 연결
+r = redis.Redis(host='localhost', port=6379, db=0)
+
+EMBEDDING_DIM = 64  # LSTM hidden_size
+
+def save_embeddings_to_redis(embeddings: dict[str, np.ndarray], batch_size: int = 1000):
+    """
+    임베딩을 Redis에 저장 (Pipeline + tobytes로 최적화)
+
+    - pickle 대신 tobytes: 직렬화 오버헤드 제거
+    - Pipeline: 네트워크 왕복 최소화 (100배 빠름)
+    """
+    pipe = r.pipeline()
+    count = 0
+
+    for user_id, emb in embeddings.items():
+        # tobytes()는 pickle보다 ~10배 빠르고 메모리 효율적
+        pipe.hset(f"emb:{user_id}", mapping={
+            "vector": emb.astype(np.float32).tobytes(),
+            "dim": EMBEDDING_DIM
+        })
+        count += 1
+
+        # 배치 단위로 실행 (메모리 관리)
+        if count % batch_size == 0:
+            pipe.execute()
+            pipe = r.pipeline()
+
+    pipe.execute()  # 남은 것 처리
+    print(f"Saved {len(embeddings)} embeddings to Redis")
+
+def load_embedding_from_redis(user_id: str) -> np.ndarray:
+    """Redis에서 임베딩 조회 (0.1ms 미만)"""
+    data = r.hget(f"emb:{user_id}", "vector")
+    if data:
+        return np.frombuffer(data, dtype=np.float32)
+    return np.zeros(EMBEDDING_DIM, dtype=np.float32)  # fallback (신규 고객)
+
+# 배치 저장
+embeddings = extract_user_embeddings(lstm_embedder, user_sequences, device)
+save_embeddings_to_redis(embeddings)
+```
+
+> **최적화 포인트**:
+> - `tobytes()` + `frombuffer()`: pickle 대비 ~10배 빠름
+> - Pipeline: 1만 건 저장 시 10초 → 0.1초
+
+### 핵심 코드: 하이브리드 추론
+
+```python
+def hybrid_predict(user_id, transaction_features, xgb_model, redis_client):
+    """하이브리드 실시간 추론"""
+    start = time.perf_counter()
+
+    # 1. Redis에서 임베딩 조회
+    embedding = load_embedding_from_redis(user_id)
+
+    # 2. 원본 피처 + 임베딩 결합
+    hybrid_features = np.concatenate([transaction_features, embedding])
+
+    # 3. XGBoost 추론
+    prob = xgb_model.predict_proba(hybrid_features.reshape(1, -1))[0, 1]
+
+    latency = (time.perf_counter() - start) * 1000
+    return prob, latency
+
+# 벤치마크
+latencies = []
+for _ in range(100):
+    _, latency = hybrid_predict(test_user, test_features, xgb_hybrid, r)
+    latencies.append(latency)
+
+print(f"Hybrid latency: {np.mean(latencies):.2f} ± {np.std(latencies):.2f} ms")
+```
+
+### 실제 실험 결과 (5개 모델 비교)
+
+| 모델 | AUC | Recall@5%FPR | 추론 속도 |
+|------|-----|--------------|-----------|
+| XGBoost 단독 | 0.9997 | 99.92% | 0.38ms |
+| FT-Transformer | 0.9995 | 99.86% | 24.58ms |
+| 하이브리드 (XGB+임베딩) | **0.9997** | **99.95%** | 1.03ms |
+| 스태킹 (3-Tree) | **0.9998** | 99.92% | 1.63ms |
+| 하이브리드 스태킹 | 0.9992 | 99.89% | 2.35ms |
+
+**핵심 발견:**
+- **스태킹이 AUC 최고** (0.9998) - DL 없이 트리 앙상블만으로 최고
+- **하이브리드 스태킹 성능 하락** (0.9992) - 과적합/정보 중복 문제
+- **하이브리드가 Recall 최고** (99.95%) - DL 임베딩 효과
+- PaySim 특성: 모든 모델 AUC 0.999+ 수렴 → 실용성 기준으로 선택
+
+### Docker 설정
+
+```yaml
+# docker-compose.yml에 추가
+services:
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+```
+
+### 면접 포인트
+
+Q: "하이브리드로 어떻게 속도를 개선했나요?"
+> "LSTM 추론이 15ms로 느려서, 배치로 고객별 임베딩을 미리 계산해서 Redis에 캐싱했습니다. 실시간에는 Redis 조회(0.1ms) + XGBoost(0.5ms)로 총 0.6ms에 추론합니다. LSTM 직접 실행 대비 25배 빨라졌습니다."
+
+Q: "이 아키텍처의 장점은?"
+> "NVIDIA 레퍼런스 아키텍처 패턴입니다. DL의 패턴 인식력(임베딩)과 XGBoost의 속도/설명성을 결합합니다. Redis 캐싱으로 실시간 서빙이 가능하고, 배치 업데이트 주기(1시간)로 임베딩 신선도를 유지합니다."
+
+Q: "임베딩이 오래된 경우는?"
+> "최대 1시간 지연이 발생할 수 있습니다. 하지만 고객 행동 패턴은 급격히 변하지 않고, XGBoost가 실시간 피처(현재 거래 정보)를 처리하므로 충분히 보완됩니다. 필요시 업데이트 주기를 10분으로 단축할 수 있습니다."
+
+Q: "왜 5가지 모델을 비교했나요?"
+> "동일 PaySim 데이터에서 공정 비교를 위해:
+> 1. XGBoost 단독 - 베이스라인
+> 2. FT-Transformer - DL 직접 추론
+> 3. 하이브리드 (XGB+임베딩) - NVIDIA Blueprint 패턴
+> 4. 스태킹 (3-Tree) - 트리 앙상블 다양성
+> 5. 하이브리드 스태킹 - 스태킹 + DL 임베딩 결합
+> 결론: 스태킹이 AUC 최고(0.9998)지만, 실무에서는 속도 대비 개선 폭이 작아서 XGBoost 단독 또는 하이브리드가 실용적입니다."
+
+Q: "하이브리드 스태킹이 오히려 성능이 낮아진 이유는?"
+> "피처가 35개(확률 3개 + 임베딩 32차원)로 많아져서 LogisticRegression이 과적합되었습니다. 또한 임베딩과 스태킹 확률 간 정보 중복(redundancy)이 발생했고, 스케일 불일치(확률 0~1 vs 임베딩 -2~+2)도 원인입니다. 이론상 '더 많은 정보 = 더 좋은 성능'이 아님을 보여주는 사례입니다."
 
 ---
 

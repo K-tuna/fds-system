@@ -87,8 +87,8 @@
 | 8 | **React Admin** | Ant Design, 거래 목록/상세 UI |
 | 9 | **트리 스태킹** ⭐⭐ | XGBoost + LightGBM + CatBoost, AUC 0.92 |
 | 10 | **Transformer** (선택) | TabTransformer, Self-Attention |
-| 11 | **하이브리드** (선택) | DL 임베딩 → XGBoost |
-| 12 | **PaySim** (선택) | 진짜 시퀀스 데이터 LSTM 검증 |
+| 11 | **PaySim 공정 비교** (선택) | 4모델 비교 + 추론 속도 측정 |
+| 12 | **하이브리드 서빙** (선택) | DL 임베딩 + Redis + XGBoost |
 
 **결과물:**
 - XGBoost + LSTM 앙상블 실험 (LSTM 효과 미미 → XGBoost 단독 채택)
@@ -97,7 +97,8 @@
 - FastAPI REST API (스태킹 모델 지원)
 - React Admin UI (거래 목록/상세/SHAP)
 - Docker 컨테이너
-- (선택) Transformer, 하이브리드, PaySim 실험
+- (선택) Transformer, PaySim 공정 비교, 하이브리드 서빙 실험
+- **(완료) 1-12 5개 모델 비교**: 스태킹 AUC 0.9998 최고, 하이브리드 Recall 99.95% 최고
 
 **포트폴리오 레벨:** 기본 ~ 좋음
 
@@ -108,7 +109,8 @@
 - "React Admin으로 SHAP 시각화"
 - **"트리 스태킹으로 확률 분포 양극화 → 운영 비용 절감"** ⭐⭐
 - **"F1 대신 AUPRC/Recall 사용 이유 설명 가능"** (FDS 특성 이해)
-- **"LSTM 실패 원인 분석 → 데이터 특성 이해"** (PaySim 선택 시)
+- **"PaySim 시계열에서 4모델 공정 비교 + 추론 속도 벤치마크"** (1-11 선택 시)
+- **"NVIDIA 레퍼런스 아키텍처: 배치 DL 임베딩 + Redis + 실시간 XGBoost"** (1-12 선택 시)
 
 ---
 
@@ -313,3 +315,5 @@ Phase 3 완료 후:
 | 2025-01-02 | 1-7 FastAPI 완료, API 설계 결함 수정, Recall 90.55% 달성 |
 | 2026-01-03 | Phase 1 확장: 1-9~1-12 추가 (트리 스태킹, Transformer, 하이브리드, PaySim) |
 | 2026-01-05 | 1-8 React Admin 완료, 1-9 트리 스태킹 완료 (AUC 0.92, AUPRC 0.60), API 스태킹 지원, 1-S10 Transformer 학습 완료, F1 → AUPRC/Recall 지표 변경 |
+| 2026-01-05 | 1-10 FT-Transformer 구현 노트북 생성 (PyTorch Tabular 활용) |
+| 2026-01-08 | 1-11 PaySim 공정 비교 완료, 1-12 하이브리드 서빙 + 5개 모델 비교 완료 (스태킹 AUC 0.9998 최고, 하이브리드 스태킹 성능 하락 원인 분석) |

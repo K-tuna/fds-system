@@ -20,7 +20,7 @@
 
 ## 📍 현재 진행 상황
 
-**마지막 업데이트**: 1-9 트리 스태킹 완료, 1-S10 Transformer 학습 완료
+**마지막 업데이트**: 1-12 하이브리드 서빙 + 5개 모델 비교 완료
 
 ### Phase 0 (완료)
 | 섹션 | 상태 |
@@ -31,7 +31,7 @@
 | 0-3 Pandas | ✅ |
 | 0-4 Matplotlib | ✅ |
 
-### Phase 1 구현 진행
+### Phase 1 구현 진행 (완료)
 
 | 노트북 | 주제 | 상태 |
 |--------|------|------|
@@ -45,11 +45,11 @@
 | 1-8 | React Admin | ✅ |
 | 1-9 | 트리 스태킹 ⭐⭐ | ✅ |
 | 1-S10 | Transformer 학습 | ✅ |
-| 1-10 | Transformer (선택) | 🎯 **다음** |
-| 1-11 | 하이브리드 (선택) | ⏳ |
-| 1-12 | PaySim (선택) | ⏳ |
+| 1-10 | FT-Transformer 구현 | ✅ |
+| 1-11 | PaySim 공정 비교 | ✅ |
+| 1-12 | 하이브리드 서빙 ⭐⭐ | ✅ |
 
-**다음 작업**: 1-10 Transformer 구현 (선택) 또는 Phase 2 진행
+**다음 작업**: Phase 2 MLOps + 모니터링 진행
 
 ---
 
@@ -110,8 +110,8 @@ fds-system/
 | 1-S8 React | → 1-8 React Admin |
 | **1-S9 스태킹** | → **1-9 트리 스태킹** ⭐⭐ |
 | 1-S10 Transformer | → 1-10 Transformer (선택) |
-| (1-S10 공유) | → 1-11 하이브리드 (선택) |
-| 1-S12 PaySim | → 1-12 PaySim (선택) |
+| (기존 지식 활용) | → 1-11 PaySim 공정 비교 (선택) |
+| (기존 지식 활용) | → 1-12 하이브리드 서빙 (선택) |
 
 ### Phase 2: MLOps + 모니터링 (6일)
 MLflow → Evidently → 비용최적화 → GitHub Actions → A/B테스트 → Prometheus/Grafana
@@ -169,6 +169,10 @@ pip install fastapi uvicorn
 7. **앙상블 실험**: LSTM 추가 시 +0.12% → 복잡도 대비 효과 없어 XGBoost 단독 채택
 8. **트리 스태킹**: XGBoost + LightGBM + CatBoost → AUC 0.92, Recall 71% @5%FPR + 확률 분포 양극화
 9. **LSTM 실패 분석**: IEEE-CIS 데이터 특성 (PCA 정적 피처) → PaySim으로 재검증
+10. **PaySim 공정 비교** (선택): 4모델 비교 + 12개 시간 윈도우 집계 피처 + 추론 속도 벤치마크
+11. **하이브리드 서빙**: NVIDIA AI Blueprint 2024 패턴 (FT-Transformer 임베딩 → Redis 캐싱 → XGBoost) - 추론 24배 개선 (24ms → 1ms)
+12. **5개 모델 공정 비교**: PaySim에서 XGBoost/Transformer/하이브리드/스태킹/하이브리드스태킹 비교 → 스태킹 AUC 최고(0.9998), 하이브리드 Recall 최고(99.95%)
+13. **하이브리드 스태킹 실패 분석**: LogisticRegression 과적합 + 정보 중복 → 오히려 성능 하락 (0.9992) 원인 분석
 
 ## 데이터
 
