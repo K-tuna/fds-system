@@ -128,11 +128,12 @@
 | 6 | 시스템 모니터링 | Prometheus + Grafana |
 
 **결과물:**
-- MLflow 실험 대시보드
-- 모델 버전 관리 체계
-- 데이터/모델 드리프트 감지
-- CI/CD 파이프라인
-- 시스템 메트릭 대시보드
+- MLflow 실험 대시보드 ✅
+- 모델 버전 관리 체계 (Alias 패턴) ✅
+- 데이터/모델 드리프트 감지 (Evidently) ✅
+- 비용 함수 + pytest 테스트 ✅
+- A/B 테스트 ⏳
+- 시스템 메트릭 대시보드 (Prometheus/Grafana) ⏳
 
 **포트폴리오 레벨:** 좋음 ⭐
 
@@ -317,3 +318,4 @@ Phase 3 완료 후:
 | 2026-01-05 | 1-8 React Admin 완료, 1-9 트리 스태킹 완료 (AUC 0.92, AUPRC 0.60), API 스태킹 지원, 1-S10 Transformer 학습 완료, F1 → AUPRC/Recall 지표 변경 |
 | 2026-01-05 | 1-10 FT-Transformer 구현 노트북 생성 (PyTorch Tabular 활용) |
 | 2026-01-08 | 1-11 PaySim 공정 비교 완료, 1-12 하이브리드 서빙 + 5개 모델 비교 완료 (스태킹 AUC 0.9998 최고, 하이브리드 스태킹 성능 하락 원인 분석) |
+| 2026-01-15 | Phase 2 진행: 2-1~2-4 완료 (MLflow, Registry, Evidently, 비용함수+pytest), 2-S3 PSI 기준 수정 (금융감독원→업계 표준) |
