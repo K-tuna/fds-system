@@ -4,11 +4,19 @@ XGBoost + SHAP 기반 이상거래 탐지 시스템 with MLOps
 
 ## 핵심 성과
 
-| 지표 | 값 | 설명 |
-|------|-----|------|
-| AUC | **0.91** | IEEE-CIS 데이터셋 기준 |
-| Recall | **90.55%** | 현업 기준(80-95%) 충족 |
-| Threshold | **0.18** | FN:FP = 20:1 비용 기반 최적화 |
+### IEEE-CIS 데이터셋
+| 모델 | AUC | Recall | 비고 |
+|------|-----|--------|------|
+| XGBoost (단독) | **0.91** | **90.55%** | Threshold 0.18 |
+| 트리 스태킹 | **0.92** | 71% @5%FPR | 확률 분포 양극화 |
+
+### PaySim 데이터셋 (5개 모델 공정 비교)
+| 모델 | AUC | Recall | 추론 속도 |
+|------|-----|--------|----------|
+| 스태킹 | **0.9998** | 99.91% | - |
+| 하이브리드 | 0.9997 | **99.95%** | 1ms (24배↑) |
+| XGBoost | 0.9996 | 99.89% | - |
+| FT-Transformer | 0.9995 | 99.87% | 24ms |
 
 ## 기술 스택
 
@@ -100,14 +108,25 @@ fds-system/
 
 ### 4. 스태킹 앙상블 (1-9)
 - XGBoost + LightGBM + CatBoost → LogisticRegression 메타 모델
-- AUC 0.92, 확률 분포 양극화 (결정 명확성 향상)
+- IEEE-CIS: AUC 0.92, Recall 71% @5%FPR
+- 확률 분포 양극화 → 결정 명확성 향상
 
 ### 5. 하이브리드 서빙 (1-12)
 - NVIDIA AI Blueprint 2024 패턴 적용
 - FT-Transformer 임베딩 → Redis 캐싱 → XGBoost
 - 추론 속도 24배 개선 (24ms → 1ms)
 
-### 6. Model Registry
+### 6. 5개 모델 공정 비교 (1-11, 1-12)
+- PaySim에서 XGBoost/Transformer/하이브리드/스태킹/하이브리드스태킹 비교
+- 스태킹 AUC 최고(0.9998), 하이브리드 Recall 최고(99.95%)
+- 하이브리드 스태킹 실패 분석: LogisticRegression 과적합 + 정보 중복
+
+### 7. LSTM 실패 분석
+- IEEE-CIS: AUC 0.70 → 앙상블 효과 미미
+- 원인: PCA 정적 피처로 시퀀스 특성 부재
+- PaySim 12개 시간 윈도우 집계 피처로 재검증
+
+### 8. Model Registry
 - MLflow Alias 기반 Champion/Challenger 패턴
 - A/B 테스트 및 롤백 지원
 
